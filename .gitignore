@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -7,28 +6,18 @@ dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
-# Node
 node_modules/
 .next/
 .turbo/
 *.tsbuildinfo
-
-# Env files — NEVER commit real secrets
 .env
 .env.local
 .env.*.local
-
-# OS
 .DS_Store
 Thumbs.db
-
-# IDEs
 .idea/
 .vscode/
 *.swp
-
-# Build outputs
 *.log
 coverage/
 htmlcov/
