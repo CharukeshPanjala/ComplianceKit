@@ -1,0 +1,9 @@
+# Default owner for everything
+*                   @your-org/backend-team
+
+# Frontend
+/frontend/          @your-org/frontend-team
+
+# Infrastructure changes require infra team review
+/infrastructure/    @your-org/infra-team
+/.github/           @your-org/infra-team
