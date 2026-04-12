@@ -86,8 +86,24 @@ Blockers hit + fixes:
 - hatchling failed to build services — missing packages = ["app"] in each 
   service's [tool.hatch.build.targets.wheel]. Fixed by adding that line to all four.
 
-### COM-4 — (next ticket title here)
-> Not started
+### COM-4 — Set up Node.js workspace with pnpm ✅
+
+**Date:** April 12, 2026
+**Status:** Done
+
+**What I did:**
+- Installed pnpm (already present at v10.4.0)
+- Created pnpm-workspace.yaml at repo root declaring frontend and dsar-workflow as packages
+- Added package.json to frontend with Next.js 14, Clerk, Tailwind, TypeScript
+- Created dsar-workflow stub package
+- 394 packages installed successfully
+
+**Decisions made:**
+- Using TypeScript across the entire frontend
+- dsar-workflow kept as empty stub for now — will be populated in later sprint
+
+**Blockers hit + fixes:**
+- Network timeout on network — fixed by forcing IPv4 via pnpm config set prefer-ip-version ipv4
 
 ---
 
