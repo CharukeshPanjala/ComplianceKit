@@ -107,6 +107,27 @@ Blockers hit + fixes:
 
 ---
 
+### COM-5 — Configure Git — .gitignore, branch protection, commit conventions ✅
+
+**Date:** April 12, 2026
+**Status:** Done
+
+**What I did:**
+- Updated .gitignore to cover Python, Node, Docker, OS and IDE files
+- Added PR template and bug report issue template in .github/
+- Set up commitlint + husky to enforce conventional commits locally
+- Made repo public to enable branch protection on main
+- Branch protection rule set on main — PRs required, force push blocked
+
+**Decisions made:**
+- Made repo public — only way to get branch protection on free GitHub plan
+- Kept branch protection simple — no required approvals since solo project
+- One-liner commits are fine for straightforward tasks
+
+**Blockers hit + fixes:**
+- GitHub Rulesets don't enforce on private repos without Team plan
+- Fixed by making repo public and using Branch Protection Rules instead
+
 ## Notes & Ongoing Decisions
 
 | Topic | Decision | Rationale |
