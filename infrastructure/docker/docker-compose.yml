@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: compliancekit-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: compliancekit
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: compliancekit-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    image: python:3.12-slim
+    container_name: compliancekit-api-gateway
+    working_dir: /app
+    command: python -c "print('api-gateway stub running'); import time; time.sleep(86400)"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  policy-engine:
+    image: python:3.12-slim
+    container_name: compliancekit-policy-engine
+    working_dir: /app
+    command: python -c "print('policy-engine stub running'); import time; time.sleep(86400)"
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  document-generator:
+    image: python:3.12-slim
+    container_name: compliancekit-document-generator
+    working_dir: /app
+    command: python -c "print('document-generator stub running'); import time; time.sleep(86400)"
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dsar-service:
+    image: python:3.12-slim
+    container_name: compliancekit-dsar-service
+    working_dir: /app
+    command: python -c "print('dsar-service stub running'); import time; time.sleep(86400)"
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
