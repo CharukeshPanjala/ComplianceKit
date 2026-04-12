@@ -1,23 +1,45 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 dist/
+build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+*.pyo
+*.pyd
+
+# Node
 node_modules/
 .next/
 .turbo/
 *.tsbuildinfo
+.cache/
+out/
+
+# Env files
 .env
 .env.local
 .env.*.local
+.env.production
+
+# Docker
+docker-volumes/
+*.log
+
+# OS
 .DS_Store
 Thumbs.db
+
+# IDEs
 .idea/
 .vscode/
 *.swp
-*.log
+*.swo
+
+# Build outputs
 coverage/
 htmlcov/
+.coverage
