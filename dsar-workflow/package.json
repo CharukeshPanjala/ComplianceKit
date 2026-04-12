@@ -1,0 +1,6 @@
+{
+  "name": "dsar-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSAR workflow utilities shared between frontend and backend"
+}
