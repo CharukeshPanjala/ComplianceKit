@@ -71,7 +71,20 @@ compliancekit/
 ## Upcoming
 
 ### COM-3 — (next ticket title here)
-> Not started
+What I did:
+Installed uv, created root pyproject.toml declaring uv workspace with 5 members, 
+restructured packages/common into correct Python package layout, added pyproject.toml 
+to all four services. uv sync runs cleanly, import common works.
+
+Decisions made:
+- Used hatchling as build backend — modern, fast, well supported by uv
+- packages = ["app"] explicitly declared in each service — hatchling can't auto-detect 
+  because folder is named app/ not api_gateway/
+- Dev dependencies declared once at root — not repeated per service
+
+Blockers hit + fixes:
+- hatchling failed to build services — missing packages = ["app"] in each 
+  service's [tool.hatch.build.targets.wheel]. Fixed by adding that line to all four.
 
 ### COM-4 — (next ticket title here)
 > Not started
