@@ -177,6 +177,30 @@ Get the full stack running locally with one command — Docker, databases, and a
 - Pydantic validation not triggering with empty .env — fixed by deleting .env entirely to confirm fail-fast works
 - PATH calculation wrong (parents[4]) — fixed to parents[3] matching actual folder depth
 
+
+### COM-9 — Alembic migrations and seed script ✅
+
+**Date:** April 15, 2026
+**Status:** Done
+
+**What I did:**
+- Added Alembic, SQLAlchemy asyncio, asyncpg, nanoid to packages/common
+- Created tenants and users SQLAlchemy models with enums for plan and role
+- Added prefixed public IDs (ten_xxxxxxxx, usr_xxxxxxxx) for API safety
+- Initialised Alembic and configured async env.py
+- Generated and ran migration — tenants and users tables created in Postgres
+- Created seed script that inserts test tenant (Acme GmbH) and admin user
+
+**Decisions made:**
+- Separate internal UUID (id) from public prefixed ID (tenant_id, user_id) — never expose raw UUIDs in API
+- Used enums for plan and role — prevents invalid values at DB level
+- updated_at on both tables — audit trail for compliance platform
+- Seed script in Python not shell — uses SQLAlchemy directly, type safe
+
+**Blockers hit + fixes:**
+- utils folder created at wrong level (packages/common/utils instead of packages/common/common/utils) — moved to correct location
+- __init__.py named incorrectly as __init.py__ — renamed
+
 ## Notes & Ongoing Decisions
 
 | Topic | Decision | Rationale |
