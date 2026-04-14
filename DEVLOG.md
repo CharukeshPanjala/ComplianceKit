@@ -11,6 +11,10 @@ Updated every time a ticket is closed.
 
 ---
 
+### Epic 0.1 — Monorepo Setup (COM-1)
+Foundation sprint — set up the entire project structure, tooling, and conventions before writing any application code.
+
+
 ### COM-142 — Create monorepo folder structure ✅
 
 **Date:** April 12, 2025
@@ -127,6 +131,51 @@ Blockers hit + fixes:
 **Blockers hit + fixes:**
 - GitHub Rulesets don't enforce on private repos without Team plan
 - Fixed by making repo public and using Branch Protection Rules instead
+
+### Epic 0.2 — Local Development Environment (COM-6)
+Get the full stack running locally with one command — Docker, databases, and all services up and healthy.
+
+### COM-7 — Docker Compose with Postgres, Redis, and service stubs ✅
+
+**Date:** April 12, 2026
+**Status:** Done
+
+**What I did:**
+- Created infrastructure/docker/docker-compose.yml with Postgres 16, Redis 7 and stub containers for all 4 services
+- Added persistent volumes so data survives restarts
+- Added healthchecks so services wait for Postgres and Redis to be ready before starting
+- Verified Postgres and Redis are reachable from Mac
+
+**Decisions made:**
+- Service stubs use python:3.12-slim with time.sleep(86400) — keeps container alive without real app code
+- Volumes named postgres_data and redis_data — managed by Docker, not host paths
+
+**Blockers hit + fixes:**
+- time.sleep(infinity) — infinity is not a Python built-in, fixed with time.sleep(86400)
+
+---
+
+### COM-8 — Environment variable management ✅
+
+**Date:** April 14, 2026
+**Status:** Done
+
+**What I did:**
+- Created .env.example with all required variables and placeholder values
+- Created .env locally with real values (not committed)
+- Added pydantic-settings to packages/common
+- Created BaseServiceSettings in common/config.py — shared by all services
+- Each service has its own config.py extending BaseServiceSettings
+- Verified service refuses to start with clear error when DATABASE_URL is missing
+
+**Decisions made:**
+- ROOT_DIR uses parents[3] to locate .env from anywhere in the repo
+- BaseServiceSettings in common — shared base, each service extends with its own extras later
+- database_url has no default — forces explicit configuration, no silent failures
+
+**Blockers hit + fixes:**
+- Pydantic validation not triggering with empty .env — fixed by deleting .env entirely to confirm fail-fast works
+- PATH calculation wrong (parents[4]) — fixed to parents[3] matching actual folder depth
 
 ## Notes & Ongoing Decisions
 
