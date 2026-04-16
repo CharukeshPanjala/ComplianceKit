@@ -201,6 +201,27 @@ Get the full stack running locally with one command — Docker, databases, and a
 - utils folder created at wrong level (packages/common/utils instead of packages/common/common/utils) — moved to correct location
 - __init__.py named incorrectly as __init.py__ — renamed
 
+### COM-10 — Add /health endpoints to all FastAPI services ✅
+
+**Date:** April 16, 2026
+**Status:** Done
+
+**What I did:**
+- Added /health endpoint to all four services returning {"status": "ok", "service": "..."}
+- Wrote real Dockerfiles for each service replacing sleep stubs from COM-7
+- Added curl to python:3.12-slim images for Docker health checks
+- Wired healthchecks in docker-compose.yml — all 6 containers show healthy
+- Generated uv.lock at repo root and copied into each Dockerfile
+
+**Decisions made:**
+- curl installed via apt in each Dockerfile — needed for Docker health check command
+- start_period: 10s gives services time to boot before health checks begin
+- uv.lock copied from repo root — single lockfile for the whole workspace
+
+**Blockers hit + fixes:**
+- uv sync --frozen failed — no uv.lock per service. Fixed by running uv lock at root and copying it in each Dockerfile
+- Containers showed unhealthy despite working — curl not installed in slim image. Fixed by adding apt-get install curl to each Dockerfile
+
 ## Notes & Ongoing Decisions
 
 | Topic | Decision | Rationale |
