@@ -222,6 +222,37 @@ Get the full stack running locally with one command — Docker, databases, and a
 - uv sync --frozen failed — no uv.lock per service. Fixed by running uv lock at root and copying it in each Dockerfile
 - Containers showed unhealthy despite working — curl not installed in slim image. Fixed by adding apt-get install curl to each Dockerfile
 
+
+### COM-12 — Design the multi-tenant database schema ✅
+
+**Date:** April 17, 2026
+**Status:** Done
+
+**What I did:**
+- Designed all 14 tables covering the full ComplianceKit platform
+- Researched actual GDPR (99 articles), NIS2 (Articles 20, 21, 23), and EU AI Act articles to ensure complete coverage
+- Created Mermaid ERD diagram with full table and column descriptions
+- Saved to docs/schema.md — renders on GitHub automatically
+- Created COM-143 — regulatory transparency page (future ticket)
+
+**Tables designed:**
+tenants, users, company_profiles, company_profile_versions,
+regulations, regulation_versions, rules, rule_versions,
+assessments, gaps, policies, policy_versions,
+dsar_requests, documents
+
+**Decisions made:**
+- JSONB for regulation-specific profile data — no migrations when adding new regulations
+- Generic regulations/rules/assessments/gaps design — one set of tables handles GDPR, NIS2, AI Act and any future regulation
+- Version history at every level — company profiles, regulations, rules, policies all have version tables
+- Prefixed public IDs — ten_xxx, usr_xxx, pol_xxx etc — raw UUIDs never exposed
+- regulation_version_id stamped on assessments and gaps — legally defensible, historical records never change
+- accepted_risk on gaps — formal risk acceptance with reason and expiry date
+- Denormalised tenant_name, regulation_name on child tables — fast queries, no joins for common display fields
+- Separated tenants (identity/billing) from company_profiles (compliance data) — different change frequencies, different audit requirements
+
+**Blockers: None**
+
 ## Notes & Ongoing Decisions
 
 | Topic | Decision | Rationale |
