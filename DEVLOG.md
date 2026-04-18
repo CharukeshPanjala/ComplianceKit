@@ -253,6 +253,35 @@ dsar_requests, documents
 
 **Blockers: None**
 
+### COM-13 — Implement Row Level Security ✅
+
+Date: April 18, 2026
+Status: Done
+
+What was done:
+- Alembic migration enables RLS on tenants and users tables
+- set_tenant_id() PostgreSQL function created
+- app_user role created — non-superuser, RLS enforced
+- Test infrastructure built: conftest.py with session-scoped fixtures
+- 3 tests passing — cross-tenant isolation confirmed
+
+Test structure:
+packages/common/
+    tests/
+        conftest.py       ← setup_app_role, db_session, app_session, two_tenants
+        unit/
+            test_rls.py   ← TestRLS class with 3 tests
+
+Decisions made:
+- app_user in conftest not migration — test concern
+- Session scoped fixtures — one event loop for all fixtures and tests
+- NullPool — no connection pooling in tests
+- Delete teardown — RLS tests need committed data, rollback won't work
+- asyncio_default_test_loop_scope = session — critical fix for event loop mismatch
+- Option B guard in setup_app_role — checks information_schema.role_table_grants before setup
+
+Blockers: None
+
 ## Notes & Ongoing Decisions
 
 | Topic | Decision | Rationale |
