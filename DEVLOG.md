@@ -282,6 +282,27 @@ Decisions made:
 
 Blockers: None
 
+### COM-16 — Create and configure Clerk account + application ✅
+
+Date: April 19, 2026
+Status: Done
+
+What was done:
+- Created Clerk account and ComplianceKit application
+- Enabled Google + Email/Password as sign-in methods
+- Enabled Organizations with Membership Required
+  → one Clerk org = one tenant in ComplianceKit
+  → no orphaned users without a tenant
+- Copied API keys to frontend/.env.local and root .env
+- Updated .env.example with placeholder values
+
+Decisions made:
+- Membership Required — pure B2B, every user must belong to a company
+- Email + Google only — standard B2B combination, no consumer platforms
+- Microsoft/Azure AD deferred — worth adding later for enterprise customers
+
+Blockers: None
+
 ## Notes & Ongoing Decisions
 
 | Topic | Decision | Rationale |
