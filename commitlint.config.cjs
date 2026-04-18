@@ -15,6 +15,7 @@ module.exports = {
         'ci',
         'deps',
         'release',
+        'db'
       ],
     ],
     'subject-case': [
