@@ -303,6 +303,53 @@ Decisions made:
 
 Blockers: None
 
+### COM-17 — Add Clerk auth to the Next.js frontend ✅
+
+Date: April 19, 2026
+Status: Done
+
+What was done:
+- Upgraded Next.js 14 → 16.2.4
+- Upgraded Node.js 18 → 20.20.2 (required for Next.js 16)
+- Upgraded Tailwind v3 → v4
+- Upgraded ESLint 8 → 10
+- Added src/ folder structure
+- Created full app folder structure with route groups:
+  (public), (auth), (onboarding), (portal)
+- Installed and configured ClerkProvider in root layout.tsx
+- Created sign-in and sign-up pages using Clerk components
+- Created proxy.ts middleware protecting all portal routes
+- Verified auth flow end to end
+
+Decisions made:
+- src/ folder — cleaner separation of source vs config files
+- Route groups — (public), (auth), (onboarding), (portal)
+  each with their own layout
+- Option C structure — regulation-specific overview pages,
+  shared filterable pages for gaps/assessments/policies
+- (portal) instead of (app) or (dashboard) — more professional
+  for a B2B compliance product
+- middleware.ts renamed to proxy.ts — Next.js 16 requirement
+- Tailwind v4 — no config file needed, cleaner setup
+- typedRoutes at top level — moved out of experimental in Next.js 16
+
+Pages structure:
+(public)     → /, /pricing, /about, /contact
+(auth)       → /sign-in, /sign-up
+(onboarding) → /onboarding
+(portal)     → /dashboard, /gdpr, /nis2, /ai-act,
+               /gaps, /assessments, /policies,
+               /dsar, /settings
+
+Verified:
+- /sign-in → Clerk sign in page ✅
+- /sign-up → Clerk sign up page ✅
+- /dashboard (not logged in) → redirects to /sign-in ✅
+- Sign up → redirects to /dashboard ✅
+- Company logo stored in Clerk, not our DB ✅
+
+Blockers: None
+
 ## Notes & Ongoing Decisions
 
 | Topic | Decision | Rationale |
