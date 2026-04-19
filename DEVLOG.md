@@ -352,6 +352,33 @@ Blockers: None
 
 ## Notes & Ongoing Decisions
 
+### COM-18 — Verify Clerk JWT tokens in FastAPI backend ✅
+
+Date: April 19, 2026
+Status: Done
+
+What was done:
+- Created common/auth/clerk.py with verify_token() FastAPI dependency
+- Created TokenClaims Pydantic model — user_id, tenant_id, org_role
+- JWKS fetching with caching — Clerk's public keys fetched once, cached
+- 4 unit tests passing — valid token, expired, invalid, no org
+
+Decisions made:
+- PyJWT + httpx — lightweight, no heavy Clerk Python SDK needed
+- JWKS caching — avoids fetching Clerk's public keys on every request
+- org_id as tenant_id — Clerk org maps directly to our tenant
+- 401 for missing org — user must belong to an org, personal accounts not allowed
+- Mocking in tests — no real Clerk tokens needed, fast and reliable
+
+Files created:
+    packages/common/common/auth/__init__.py
+    packages/common/common/auth/clerk.py
+    packages/common/tests/unit/test_clerk_auth.py
+
+Test results: 4 passed
+
+Blockers: None
+
 | Topic | Decision | Rationale |
 |---|---|---|
 | Monorepo style | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
