@@ -379,6 +379,38 @@ Test results: 4 passed
 
 Blockers: None
 
+### COM-19 — Auto-provision tenant on Clerk webhook ✅
+
+Date: April 24, 2026
+Status: Done
+
+What was done:
+- Created packages/common/common/db/session.py — shared async SQLAlchemy
+  session factory (admin, no RLS scoping)
+- Created packages/common/common/db/__init__.py
+- Rewrote services/api-gateway/app/api/v1/endpoints/webhooks.py —
+  real DB inserts replacing print() stubs
+- Added clerk_webhook_secret to GatewaySettings
+- Added env_file to all 4 services in docker-compose.yml
+- Fixed DATABASE_URL to use compliancekit-postgres (Docker hostname)
+- Installed ngrok, wired to Clerk webhook dashboard for local testing
+- Verified end-to-end: Clerk test event → tenant row in PostgreSQL
+- Added 5 unit tests — all passing
+
+Decisions made:
+- Admin DB session in common/db/ — all services will need DB access
+- No RLS on webhook session — server-to-server call, no tenant context yet
+- Duplicate guard via slug lookup — silent skip if org already exists
+- First user in an org always gets ADMIN role
+
+Blockers hit + fixes:
+- Docker containers had no env vars — added env_file to docker-compose.yml
+- DATABASE_URL used localhost — fixed to container hostname
+- Volumes wiped when containers deleted — re-ran alembic upgrade head
+- app.api.v1 not resolving in tests — fixed with pythonpath = ["."] in pyproject.toml
+
+
+
 | Topic | Decision | Rationale |
 |---|---|---|
 | Monorepo style | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |

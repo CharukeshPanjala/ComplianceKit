@@ -7,7 +7,7 @@ module.exports = {
       [
         'gateway',
         'policy',
-        'docgen',
+        'docs',
         'dsar',
         'common',
         'frontend',
