@@ -410,6 +410,29 @@ Blockers hit + fixes:
 - app.api.v1 not resolving in tests — fixed with pythonpath = ["."] in pyproject.toml
 
 
+### COM-14 — Write TenantMiddleware for FastAPI ✅
+
+Date: April 24, 2026
+Status: Done
+
+What was done:
+- Created packages/common/common/db/tenant.py — get_tenant_session()
+  FastAPI dependency
+- Chains verify_token() → opens DB session → SET LOCAL app.current_tenant_id
+- RLS activates automatically for all routes using this dependency
+- Updated common/db/__init__.py to export get_tenant_session
+- 3 unit tests passing
+
+Decisions made:
+- Dependency injection over middleware — idiomatic FastAPI, testable,
+  no streaming issues
+- SET LOCAL inside transaction — resets after request, safe for
+  connection pooling
+- Health routes excluded automatically — dependency applied at router
+  level, not globally
+
+Blockers: None
+
 
 | Topic | Decision | Rationale |
 |---|---|---|
