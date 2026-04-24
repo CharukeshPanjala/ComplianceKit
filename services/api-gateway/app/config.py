@@ -1,6 +1,6 @@
 from common.config import BaseServiceSettings
 
 class GatewaySettings(BaseServiceSettings):
-    pass
+    clerk_webhook_secret: str
 
 settings = GatewaySettings()
