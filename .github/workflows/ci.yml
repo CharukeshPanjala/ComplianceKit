@@ -45,6 +45,10 @@ jobs:
       - name: Mypy typecheck
         run: uv run mypy packages/common/common services/api-gateway/app --ignore-missing-imports
 
+      - name: Run migrations
+        run: uv run alembic upgrade head
+        working-directory: packages/common
+
       - name: Run common tests
         run: uv run pytest packages/common/tests/unit -v
 
