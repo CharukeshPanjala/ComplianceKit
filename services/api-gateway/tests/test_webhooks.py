@@ -1,6 +1,4 @@
 import json
-import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import patch, MagicMock, AsyncMock
 
 
@@ -85,7 +83,7 @@ class TestClerkWebhook:
         """organization.created duplicate → 200, no insert."""
         test_client, mock_session = client
 
-        from common.models.tenant import Tenant, TenantPlan
+        from common.models.tenant import Tenant
         existing_tenant = MagicMock(spec=Tenant)
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = existing_tenant

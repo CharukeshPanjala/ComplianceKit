@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-python:
+    name: Python — lint + typecheck + tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: compliancekit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit
+      REDIS_URL: redis://localhost:6379/0
+      CLERK_WEBHOOK_SECRET: whsec_test
+      ENVIRONMENT: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Mypy typecheck
+        run: uv run mypy packages/common/common services/api-gateway/app --ignore-missing-imports
+
+      - name: Run migrations
+        run: uv run alembic upgrade head
+        working-directory: packages/common
+
+      - name: Run common tests
+        run: uv run pytest packages/common/tests/unit -v
+
+      - name: Run api-gateway tests
+        run: uv run pytest services/api-gateway/tests -v
+
+  test-frontend:
+    name: Frontend — typecheck + lint
+    runs-on: ubuntu-latest
+    if: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install
+        working-directory: frontend
+
+      - name: TypeScript typecheck
+        run: pnpm typecheck
+        working-directory: frontend
+
+      - name: ESLint
+        run: pnpm lint
+        working-directory: frontend

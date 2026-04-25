@@ -434,6 +434,41 @@ Decisions made:
 Blockers: None
 
 
+### COM-21 — GitHub Actions: automated test pipeline on every PR ✅
+
+Date: April 25, 2026
+Status: Done
+
+What was done:
+- Created .github/workflows/ci.yml with Python and Frontend jobs
+- Python job: ruff lint → mypy → alembic migrations → pytest
+- Frontend job: disabled until real frontend code exists
+- Fixed 9 ruff lint errors — unused imports and variables
+- Added mypy config to root pyproject.toml
+- Fixed pnpm cache path in CI
+- Added migration step so set_tenant_id() exists in CI DB
+
+Decisions made:
+- mypy Option 2 — override config files only, not full pydantic plugin
+- Frontend CI disabled — pointless to lint/typecheck a skeleton
+- Only testing common + api-gateway — other services have no tests yet
+
+Skipped for future:
+- Frontend lint/typecheck — re-enable at COM-71
+- Playwright E2E in CI — when first E2E tests written
+- pytest-cov coverage threshold — add in observability sprint
+- mypy pydantic plugin — upgrade when codebase more stable
+- Matrix Python version testing — not needed at this stage
+
+Blockers hit + fixes:
+- pnpm cache path wrong — fixed to root pnpm-lock.yaml
+- set_tenant_id() missing in CI DB — added alembic upgrade head step
+- mypy false positives — added module overrides for config files
+- ruff caught 9 real issues — all fixed
+
+Next: COM-22 — Build and push Docker images on merge to main
+
+
 | Topic | Decision | Rationale |
 |---|---|---|
 | Monorepo style | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |

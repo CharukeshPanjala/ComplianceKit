@@ -42,7 +42,7 @@ async def clerk_webhook(
 
 
 async def handle_org_created(data: dict, db: AsyncSession) -> None:
-    clerk_org_id: str = data["id"]
+    # clerk_org_id: str = data["id"]
     org_name: str = data["name"]
     slug: str = data.get("slug") or org_name.lower().replace(" ", "-")
 
@@ -64,7 +64,7 @@ async def handle_org_created(data: dict, db: AsyncSession) -> None:
 
 
 async def handle_user_created(data: dict, db: AsyncSession) -> None:
-    clerk_user_id: str = data["id"]
+    # clerk_user_id: str = data["id"]
     email: str = data.get("email_addresses", [{}])[0].get("email_address", "")
 
     # Get the org this user belongs to
@@ -73,7 +73,7 @@ async def handle_user_created(data: dict, db: AsyncSession) -> None:
         # User has no org yet — Clerk will fire another event when they join
         return
 
-    clerk_org_id: str = memberships[0]["organization"]["id"]
+    # clerk_org_id: str = memberships[0]["organization"]["id"]
     slug: str = memberships[0]["organization"].get("slug", "")
 
     # Find the matching tenant
