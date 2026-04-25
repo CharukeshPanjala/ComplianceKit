@@ -469,6 +469,29 @@ Blockers hit + fixes:
 Next: COM-22 — Build and push Docker images on merge to main
 
 
+### COM-22 — GitHub Actions: build and push Docker images on merge to main ✅
+
+Date: April 25, 2026
+Status: Done
+
+What was done:
+- Created .github/workflows/deploy.yml
+- Matrix strategy builds all 4 services in parallel
+- Images pushed to GHCR with latest + sha tags
+- Uses built-in GITHUB_TOKEN — no secrets setup needed
+- Verified — 4 packages visible on GitHub
+
+Decisions made:
+- GHCR over Docker Hub — free, no rate limits, built into GitHub
+- Matrix strategy — avoids copy-pasting steps 4 times
+- Both latest + SHA tags — latest for convenience, SHA for rollback
+
+Blockers hit + fixes:
+- Invalid action input dockerfile — fixed to file parameter
+
+Next: COM-23 — Set up Railway project
+
+
 | Topic | Decision | Rationale |
 |---|---|---|
 | Monorepo style | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
