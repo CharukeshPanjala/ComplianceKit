@@ -727,3 +727,29 @@ Decisions made:
 - DSAR → Redis connection included — DSAR needs queuing
 - API Gateway → Redis shown as cache connection (dashed)
 - OpenAI in infra section — not yet implemented, planned Sprint 1
+
+### COM-31 — Write Architecture Decision Records (ADR-001 to ADR-010) ✅
+
+Date: May 3, 2026
+Status: Done
+
+What was done:
+
+- Filled in existing ADR-001, ADR-002, ADR-003 (were empty placeholders)
+- Created 7 new ADRs covering all Sprint 0 decisions
+- All 10 ADRs saved in docs/adr/
+
+ADRs written:
+
+- ADR-001 — FastAPI over Django
+- ADR-002 — Clerk for authentication
+- ADR-003 — PostgreSQL RLS for multi-tenancy
+- ADR-004 — Railway over AWS/Heroku
+- ADR-005 — Monorepo over separate repos
+- ADR-006 — uv over pip/poetry
+- ADR-007 — structlog for structured logging
+- ADR-008 — OpenTelemetry for tracing
+- ADR-009 — GitHub source deployment over GHCR images
+- ADR-010 — Async SQLAlchemy over sync
+
+Each ADR covers: Status, Context, Decision, Consequences.
