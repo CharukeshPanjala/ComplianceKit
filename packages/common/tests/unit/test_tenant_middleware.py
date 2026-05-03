@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import HTTPException
-
+from fastapi import HTTPException, Request
 from common.auth.clerk import TokenClaims
 from common.db.tenant import get_tenant_session
 
@@ -11,6 +10,10 @@ VALID_CLAIMS = TokenClaims(
     org_role="org:admin",
 )
 
+def make_mock_request():
+    mock_request = MagicMock(spec=Request)
+    mock_request.state = MagicMock()
+    return mock_request
 
 class TestGetTenantSession:
 
@@ -28,7 +31,7 @@ class TestGetTenantSession:
         mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         with patch("common.db.tenant.AsyncSessionLocal", mock_factory):
-            gen = get_tenant_session(claims=VALID_CLAIMS)
+            gen = get_tenant_session(request=make_mock_request(), claims=VALID_CLAIMS)
             await gen.__anext__()
 
         mock_session.execute.assert_called_once()
@@ -61,7 +64,7 @@ class TestGetTenantSession:
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
             with patch("common.db.tenant.AsyncSessionLocal", mock_factory):
-                gen = get_tenant_session(claims=claims)
+                gen = get_tenant_session(request=make_mock_request(), claims=claims)
                 await gen.__anext__()
 
         assert tenant_ids_set == ["ten_aaa111", "ten_bbb222"]
