@@ -12,8 +12,8 @@ Updated every time a ticket is closed.
 ---
 
 ### Epic 0.1 — Monorepo Setup (COM-1)
-Foundation sprint — set up the entire project structure, tooling, and conventions before writing any application code.
 
+Foundation sprint — set up the entire project structure, tooling, and conventions before writing any application code.
 
 ### COM-142 — Create monorepo folder structure ✅
 
@@ -21,6 +21,7 @@ Foundation sprint — set up the entire project structure, tooling, and conventi
 **Status:** Done
 
 **What I did:**
+
 - Scaffolded the full monorepo from scratch using terminal commands
 - Created 4 service skeletons: `api-gateway`, `policy-engine`, `document-generator`, `dsar-service`
 - Each service has the standard FastAPI layout: `app/{api,core,models,schemas,services}/` + `tests/`
@@ -33,6 +34,7 @@ Foundation sprint — set up the entire project structure, tooling, and conventi
 - 44 files created, committed, and pushed to GitHub
 
 **Structure:**
+
 ```
 compliancekit/
 ├── services/
@@ -51,6 +53,7 @@ compliancekit/
 ```
 
 **Decisions made:**
+
 - Used flat `services/` layout over Turborepo — simpler for a Python-heavy stack, Turborepo's build graph optimisation only pays off with many frontend packages
 - Kept `infrastructure/` centralised rather than per-service — makes infra changes reviewable in one place via CODEOWNERS
 - Each service has its own `pyproject.toml` so dependencies can be pinned independently
@@ -60,12 +63,14 @@ compliancekit/
 - FastAPI over Django (ADR-0001) — async-native, automatic OpenAPI, better type-hint integration
 
 **Blockers hit + fixes:**
+
 - zsh choked on `#` comment lines when pasting the full script block — fixed by running heredoc blocks separately
 - `git branch -M main` threw an error because repo was already on main — harmless, ignored
 - `gh` CLI not installed — pushed manually: `git remote add origin` + `git push -u origin main`
 - `zsh: missing delimiter for 'g' glob qualifier` on heredoc — re-ran the `.gitignore` heredoc block in isolation
 
 **Resources:**
+
 - [FastAPI project structure docs](https://fastapi.tiangolo.com/tutorial/bigger-applications/)
 - [ADR concept — Michael Nygard](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
 - [Conventional Commits spec](https://www.conventionalcommits.org/en/v1.0.0/)
@@ -75,19 +80,22 @@ compliancekit/
 ## Upcoming
 
 ### COM-3 — (next ticket title here)
+
 What I did:
-Installed uv, created root pyproject.toml declaring uv workspace with 5 members, 
-restructured packages/common into correct Python package layout, added pyproject.toml 
+Installed uv, created root pyproject.toml declaring uv workspace with 5 members,
+restructured packages/common into correct Python package layout, added pyproject.toml
 to all four services. uv sync runs cleanly, import common works.
 
 Decisions made:
+
 - Used hatchling as build backend — modern, fast, well supported by uv
-- packages = ["app"] explicitly declared in each service — hatchling can't auto-detect 
+- packages = ["app"] explicitly declared in each service — hatchling can't auto-detect
   because folder is named app/ not api_gateway/
 - Dev dependencies declared once at root — not repeated per service
 
 Blockers hit + fixes:
-- hatchling failed to build services — missing packages = ["app"] in each 
+
+- hatchling failed to build services — missing packages = ["app"] in each
   service's [tool.hatch.build.targets.wheel]. Fixed by adding that line to all four.
 
 ### COM-4 — Set up Node.js workspace with pnpm ✅
@@ -96,6 +104,7 @@ Blockers hit + fixes:
 **Status:** Done
 
 **What I did:**
+
 - Installed pnpm (already present at v10.4.0)
 - Created pnpm-workspace.yaml at repo root declaring frontend and dsar-workflow as packages
 - Added package.json to frontend with Next.js 14, Clerk, Tailwind, TypeScript
@@ -103,10 +112,12 @@ Blockers hit + fixes:
 - 394 packages installed successfully
 
 **Decisions made:**
+
 - Using TypeScript across the entire frontend
 - dsar-workflow kept as empty stub for now — will be populated in later sprint
 
 **Blockers hit + fixes:**
+
 - Network timeout on network — fixed by forcing IPv4 via pnpm config set prefer-ip-version ipv4
 
 ---
@@ -117,6 +128,7 @@ Blockers hit + fixes:
 **Status:** Done
 
 **What I did:**
+
 - Updated .gitignore to cover Python, Node, Docker, OS and IDE files
 - Added PR template and bug report issue template in .github/
 - Set up commitlint + husky to enforce conventional commits locally
@@ -124,15 +136,18 @@ Blockers hit + fixes:
 - Branch protection rule set on main — PRs required, force push blocked
 
 **Decisions made:**
+
 - Made repo public — only way to get branch protection on free GitHub plan
 - Kept branch protection simple — no required approvals since solo project
 - One-liner commits are fine for straightforward tasks
 
 **Blockers hit + fixes:**
+
 - GitHub Rulesets don't enforce on private repos without Team plan
 - Fixed by making repo public and using Branch Protection Rules instead
 
 ### Epic 0.2 — Local Development Environment (COM-6)
+
 Get the full stack running locally with one command — Docker, databases, and all services up and healthy.
 
 ### COM-7 — Docker Compose with Postgres, Redis, and service stubs ✅
@@ -141,16 +156,19 @@ Get the full stack running locally with one command — Docker, databases, and a
 **Status:** Done
 
 **What I did:**
+
 - Created infrastructure/docker/docker-compose.yml with Postgres 16, Redis 7 and stub containers for all 4 services
 - Added persistent volumes so data survives restarts
 - Added healthchecks so services wait for Postgres and Redis to be ready before starting
 - Verified Postgres and Redis are reachable from Mac
 
 **Decisions made:**
+
 - Service stubs use python:3.12-slim with time.sleep(86400) — keeps container alive without real app code
 - Volumes named postgres_data and redis_data — managed by Docker, not host paths
 
 **Blockers hit + fixes:**
+
 - time.sleep(infinity) — infinity is not a Python built-in, fixed with time.sleep(86400)
 
 ---
@@ -161,6 +179,7 @@ Get the full stack running locally with one command — Docker, databases, and a
 **Status:** Done
 
 **What I did:**
+
 - Created .env.example with all required variables and placeholder values
 - Created .env locally with real values (not committed)
 - Added pydantic-settings to packages/common
@@ -169,14 +188,15 @@ Get the full stack running locally with one command — Docker, databases, and a
 - Verified service refuses to start with clear error when DATABASE_URL is missing
 
 **Decisions made:**
+
 - ROOT_DIR uses parents[3] to locate .env from anywhere in the repo
 - BaseServiceSettings in common — shared base, each service extends with its own extras later
 - database_url has no default — forces explicit configuration, no silent failures
 
 **Blockers hit + fixes:**
+
 - Pydantic validation not triggering with empty .env — fixed by deleting .env entirely to confirm fail-fast works
 - PATH calculation wrong (parents[4]) — fixed to parents[3] matching actual folder depth
-
 
 ### COM-9 — Alembic migrations and seed script ✅
 
@@ -184,6 +204,7 @@ Get the full stack running locally with one command — Docker, databases, and a
 **Status:** Done
 
 **What I did:**
+
 - Added Alembic, SQLAlchemy asyncio, asyncpg, nanoid to packages/common
 - Created tenants and users SQLAlchemy models with enums for plan and role
 - Added prefixed public IDs (ten_xxxxxxxx, usr_xxxxxxxx) for API safety
@@ -192,14 +213,16 @@ Get the full stack running locally with one command — Docker, databases, and a
 - Created seed script that inserts test tenant (Acme GmbH) and admin user
 
 **Decisions made:**
+
 - Separate internal UUID (id) from public prefixed ID (tenant_id, user_id) — never expose raw UUIDs in API
 - Used enums for plan and role — prevents invalid values at DB level
 - updated_at on both tables — audit trail for compliance platform
 - Seed script in Python not shell — uses SQLAlchemy directly, type safe
 
 **Blockers hit + fixes:**
+
 - utils folder created at wrong level (packages/common/utils instead of packages/common/common/utils) — moved to correct location
-- __init__.py named incorrectly as __init.py__ — renamed
+- **init**.py named incorrectly as **init.py** — renamed
 
 ### COM-10 — Add /health endpoints to all FastAPI services ✅
 
@@ -207,6 +230,7 @@ Get the full stack running locally with one command — Docker, databases, and a
 **Status:** Done
 
 **What I did:**
+
 - Added /health endpoint to all four services returning {"status": "ok", "service": "..."}
 - Wrote real Dockerfiles for each service replacing sleep stubs from COM-7
 - Added curl to python:3.12-slim images for Docker health checks
@@ -214,14 +238,15 @@ Get the full stack running locally with one command — Docker, databases, and a
 - Generated uv.lock at repo root and copied into each Dockerfile
 
 **Decisions made:**
+
 - curl installed via apt in each Dockerfile — needed for Docker health check command
 - start_period: 10s gives services time to boot before health checks begin
 - uv.lock copied from repo root — single lockfile for the whole workspace
 
 **Blockers hit + fixes:**
+
 - uv sync --frozen failed — no uv.lock per service. Fixed by running uv lock at root and copying it in each Dockerfile
 - Containers showed unhealthy despite working — curl not installed in slim image. Fixed by adding apt-get install curl to each Dockerfile
-
 
 ### COM-12 — Design the multi-tenant database schema ✅
 
@@ -229,6 +254,7 @@ Get the full stack running locally with one command — Docker, databases, and a
 **Status:** Done
 
 **What I did:**
+
 - Designed all 14 tables covering the full ComplianceKit platform
 - Researched actual GDPR (99 articles), NIS2 (Articles 20, 21, 23), and EU AI Act articles to ensure complete coverage
 - Created Mermaid ERD diagram with full table and column descriptions
@@ -242,6 +268,7 @@ assessments, gaps, policies, policy_versions,
 dsar_requests, documents
 
 **Decisions made:**
+
 - JSONB for regulation-specific profile data — no migrations when adding new regulations
 - Generic regulations/rules/assessments/gaps design — one set of tables handles GDPR, NIS2, AI Act and any future regulation
 - Version history at every level — company profiles, regulations, rules, policies all have version tables
@@ -259,6 +286,7 @@ Date: April 18, 2026
 Status: Done
 
 What was done:
+
 - Alembic migration enables RLS on tenants and users tables
 - set_tenant_id() PostgreSQL function created
 - app_user role created — non-superuser, RLS enforced
@@ -267,12 +295,13 @@ What was done:
 
 Test structure:
 packages/common/
-    tests/
-        conftest.py       ← setup_app_role, db_session, app_session, two_tenants
-        unit/
-            test_rls.py   ← TestRLS class with 3 tests
+tests/
+conftest.py ← setup_app_role, db_session, app_session, two_tenants
+unit/
+test_rls.py ← TestRLS class with 3 tests
 
 Decisions made:
+
 - app_user in conftest not migration — test concern
 - Session scoped fixtures — one event loop for all fixtures and tests
 - NullPool — no connection pooling in tests
@@ -288,6 +317,7 @@ Date: April 19, 2026
 Status: Done
 
 What was done:
+
 - Created Clerk account and ComplianceKit application
 - Enabled Google + Email/Password as sign-in methods
 - Enabled Organizations with Membership Required
@@ -297,6 +327,7 @@ What was done:
 - Updated .env.example with placeholder values
 
 Decisions made:
+
 - Membership Required — pure B2B, every user must belong to a company
 - Email + Google only — standard B2B combination, no consumer platforms
 - Microsoft/Azure AD deferred — worth adding later for enterprise customers
@@ -309,6 +340,7 @@ Date: April 19, 2026
 Status: Done
 
 What was done:
+
 - Upgraded Next.js 14 → 16.2.4
 - Upgraded Node.js 18 → 20.20.2 (required for Next.js 16)
 - Upgraded Tailwind v3 → v4
@@ -322,6 +354,7 @@ What was done:
 - Verified auth flow end to end
 
 Decisions made:
+
 - src/ folder — cleaner separation of source vs config files
 - Route groups — (public), (auth), (onboarding), (portal)
   each with their own layout
@@ -334,14 +367,15 @@ Decisions made:
 - typedRoutes at top level — moved out of experimental in Next.js 16
 
 Pages structure:
-(public)     → /, /pricing, /about, /contact
-(auth)       → /sign-in, /sign-up
+(public) → /, /pricing, /about, /contact
+(auth) → /sign-in, /sign-up
 (onboarding) → /onboarding
-(portal)     → /dashboard, /gdpr, /nis2, /ai-act,
-               /gaps, /assessments, /policies,
-               /dsar, /settings
+(portal) → /dashboard, /gdpr, /nis2, /ai-act,
+/gaps, /assessments, /policies,
+/dsar, /settings
 
 Verified:
+
 - /sign-in → Clerk sign in page ✅
 - /sign-up → Clerk sign up page ✅
 - /dashboard (not logged in) → redirects to /sign-in ✅
@@ -358,12 +392,14 @@ Date: April 19, 2026
 Status: Done
 
 What was done:
+
 - Created common/auth/clerk.py with verify_token() FastAPI dependency
 - Created TokenClaims Pydantic model — user_id, tenant_id, org_role
 - JWKS fetching with caching — Clerk's public keys fetched once, cached
 - 4 unit tests passing — valid token, expired, invalid, no org
 
 Decisions made:
+
 - PyJWT + httpx — lightweight, no heavy Clerk Python SDK needed
 - JWKS caching — avoids fetching Clerk's public keys on every request
 - org_id as tenant_id — Clerk org maps directly to our tenant
@@ -371,9 +407,9 @@ Decisions made:
 - Mocking in tests — no real Clerk tokens needed, fast and reliable
 
 Files created:
-    packages/common/common/auth/__init__.py
-    packages/common/common/auth/clerk.py
-    packages/common/tests/unit/test_clerk_auth.py
+packages/common/common/auth/**init**.py
+packages/common/common/auth/clerk.py
+packages/common/tests/unit/test_clerk_auth.py
 
 Test results: 4 passed
 
@@ -385,9 +421,10 @@ Date: April 24, 2026
 Status: Done
 
 What was done:
+
 - Created packages/common/common/db/session.py — shared async SQLAlchemy
   session factory (admin, no RLS scoping)
-- Created packages/common/common/db/__init__.py
+- Created packages/common/common/db/**init**.py
 - Rewrote services/api-gateway/app/api/v1/endpoints/webhooks.py —
   real DB inserts replacing print() stubs
 - Added clerk_webhook_secret to GatewaySettings
@@ -398,17 +435,18 @@ What was done:
 - Added 5 unit tests — all passing
 
 Decisions made:
+
 - Admin DB session in common/db/ — all services will need DB access
 - No RLS on webhook session — server-to-server call, no tenant context yet
 - Duplicate guard via slug lookup — silent skip if org already exists
 - First user in an org always gets ADMIN role
 
 Blockers hit + fixes:
+
 - Docker containers had no env vars — added env_file to docker-compose.yml
 - DATABASE_URL used localhost — fixed to container hostname
 - Volumes wiped when containers deleted — re-ran alembic upgrade head
 - app.api.v1 not resolving in tests — fixed with pythonpath = ["."] in pyproject.toml
-
 
 ### COM-14 — Write TenantMiddleware for FastAPI ✅
 
@@ -416,14 +454,16 @@ Date: April 24, 2026
 Status: Done
 
 What was done:
+
 - Created packages/common/common/db/tenant.py — get_tenant_session()
   FastAPI dependency
 - Chains verify_token() → opens DB session → SET LOCAL app.current_tenant_id
 - RLS activates automatically for all routes using this dependency
-- Updated common/db/__init__.py to export get_tenant_session
+- Updated common/db/**init**.py to export get_tenant_session
 - 3 unit tests passing
 
 Decisions made:
+
 - Dependency injection over middleware — idiomatic FastAPI, testable,
   no streaming issues
 - SET LOCAL inside transaction — resets after request, safe for
@@ -433,13 +473,13 @@ Decisions made:
 
 Blockers: None
 
-
 ### COM-21 — GitHub Actions: automated test pipeline on every PR ✅
 
 Date: April 25, 2026
 Status: Done
 
 What was done:
+
 - Created .github/workflows/ci.yml with Python and Frontend jobs
 - Python job: ruff lint → mypy → alembic migrations → pytest
 - Frontend job: disabled until real frontend code exists
@@ -449,11 +489,13 @@ What was done:
 - Added migration step so set_tenant_id() exists in CI DB
 
 Decisions made:
+
 - mypy Option 2 — override config files only, not full pydantic plugin
 - Frontend CI disabled — pointless to lint/typecheck a skeleton
 - Only testing common + api-gateway — other services have no tests yet
 
 Skipped for future:
+
 - Frontend lint/typecheck — re-enable at COM-71
 - Playwright E2E in CI — when first E2E tests written
 - pytest-cov coverage threshold — add in observability sprint
@@ -461,6 +503,7 @@ Skipped for future:
 - Matrix Python version testing — not needed at this stage
 
 Blockers hit + fixes:
+
 - pnpm cache path wrong — fixed to root pnpm-lock.yaml
 - set_tenant_id() missing in CI DB — added alembic upgrade head step
 - mypy false positives — added module overrides for config files
@@ -468,13 +511,13 @@ Blockers hit + fixes:
 
 Next: COM-22 — Build and push Docker images on merge to main
 
-
 ### COM-22 — GitHub Actions: build and push Docker images on merge to main ✅
 
 Date: April 25, 2026
 Status: Done
 
 What was done:
+
 - Created .github/workflows/deploy.yml
 - Matrix strategy builds all 4 services in parallel
 - Images pushed to GHCR with latest + sha tags
@@ -482,24 +525,71 @@ What was done:
 - Verified — 4 packages visible on GitHub
 
 Decisions made:
+
 - GHCR over Docker Hub — free, no rate limits, built into GitHub
 - Matrix strategy — avoids copy-pasting steps 4 times
 - Both latest + SHA tags — latest for convenience, SHA for rollback
 
 Blockers hit + fixes:
+
 - Invalid action input dockerfile — fixed to file parameter
 
 Next: COM-23 — Set up Railway project
 
+### COM-23 — Set up Railway project with Postgres, Redis, and GitHub auto-deploy ✅
 
-| Topic | Decision | Rationale |
-|---|---|---|
-| Monorepo style | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
-| Auth | Clerk | Org/role primitives fit multi-tenancy |
-| DB isolation | PostgreSQL RLS | Defence-in-depth — app layer + DB layer |
-| Backend framework | FastAPI | Async-native, OpenAPI, type hints |
-| Python package manager | `uv` | 10-100x faster than pip, lockfile-based |
-| Node package manager | `pnpm` | Strict mode, no phantom dependencies |
-| Deployment | Railway | Per-service deploy model fits microservices |
-| Commit format | Conventional Commits | Feeds automated changelog + semver |
-| Branch strategy | Trunk-based off `main` | Linear history, short-lived branches |
+Date: May 3, 2026
+Status: Done
+
+What was done:
+
+- Created Railway project (compliance-kit)
+- Added managed Postgres and Redis services
+- Connected GitHub repo — push to main triggers auto-deploy
+- Switched from GHCR Docker image deployment to GitHub source deployment
+- Railway builds directly from our Dockerfiles on every push to main
+- Added railway.toml config as code for api-gateway
+- Fixed alembic/env.py to read DATABASE_URL from environment
+- Fixed Dockerfiles to use ${PORT:-8000} for Railway port compatibility
+- Added PORT=8000 variable to align Railway proxy with Uvicorn
+- Pre-deploy command runs alembic migrations before every deploy
+- Healthcheck configured at /api/v1/health
+- api-gateway live at: https://api-gateway-production-0bf0.up.railway.app
+
+Decisions made:
+
+- GitHub source over GHCR images — railway.toml works, pre-deploy reliable
+- PORT=8000 explicitly set — Railway injects PORT but proxy needs alignment
+- Disabled COM-22 deploy workflow — Railway handles builds directly now
+- Pre-deploy via railway.toml array format — single sh -c element
+
+Skipped / deferred:
+
+- policy-engine, document-generator, dsar-service deployment — stubs, no real code
+- Serverless on stub services — do when deploying remaining services
+- Postgres daily backups — set up in observability sprint
+- Wait for CI — enable when Railway GitHub integration is stable
+- Custom domain — needed when we have real customers
+
+Blockers hit + fixes:
+
+- railway.toml ignored for Docker image deployments — switched to GitHub source
+- Pre-deploy cd command failed — no shell in exec form, fixed with sh -c
+- preDeployCommand array limited to 1 element — combined into single sh -c string
+- alembic.ini hardcoded localhost — fixed env.py to read DATABASE_URL from env
+- Healthcheck failing — app hardcoded port 8000, Railway injected 8080 — fixed with PORT=8000 variable
+- railway.toml skipped — set config file path in Railway dashboard settings
+
+Next: COM-24 — Set up staging environment
+
+| Topic                  | Decision                | Rationale                                     |
+| ---------------------- | ----------------------- | --------------------------------------------- |
+| Monorepo style         | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
+| Auth                   | Clerk                   | Org/role primitives fit multi-tenancy         |
+| DB isolation           | PostgreSQL RLS          | Defence-in-depth — app layer + DB layer       |
+| Backend framework      | FastAPI                 | Async-native, OpenAPI, type hints             |
+| Python package manager | `uv`                    | 10-100x faster than pip, lockfile-based       |
+| Node package manager   | `pnpm`                  | Strict mode, no phantom dependencies          |
+| Deployment             | Railway                 | Per-service deploy model fits microservices   |
+| Commit format          | Conventional Commits    | Feeds automated changelog + semver            |
+| Branch strategy        | Trunk-based off `main`  | Linear history, short-lived branches          |
