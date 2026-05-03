@@ -77,6 +77,18 @@ compliancekit/
 
 ---
 
+| Topic                  | Decision                | Rationale                                     |
+| ---------------------- | ----------------------- | --------------------------------------------- |
+| Monorepo style         | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
+| Auth                   | Clerk                   | Org/role primitives fit multi-tenancy         |
+| DB isolation           | PostgreSQL RLS          | Defence-in-depth — app layer + DB layer       |
+| Backend framework      | FastAPI                 | Async-native, OpenAPI, type hints             |
+| Python package manager | `uv`                    | 10-100x faster than pip, lockfile-based       |
+| Node package manager   | `pnpm`                  | Strict mode, no phantom dependencies          |
+| Deployment             | Railway                 | Per-service deploy model fits microservices   |
+| Commit format          | Conventional Commits    | Feeds automated changelog + semver            |
+| Branch strategy        | Trunk-based off `main`  | Linear history, short-lived branches          |
+
 ## Upcoming
 
 ### COM-3 — (next ticket title here)
@@ -691,14 +703,27 @@ Deferred:
 
 Next: COM-29 — System architecture diagram
 
-| Topic                  | Decision                | Rationale                                     |
-| ---------------------- | ----------------------- | --------------------------------------------- |
-| Monorepo style         | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
-| Auth                   | Clerk                   | Org/role primitives fit multi-tenancy         |
-| DB isolation           | PostgreSQL RLS          | Defence-in-depth — app layer + DB layer       |
-| Backend framework      | FastAPI                 | Async-native, OpenAPI, type hints             |
-| Python package manager | `uv`                    | 10-100x faster than pip, lockfile-based       |
-| Node package manager   | `pnpm`                  | Strict mode, no phantom dependencies          |
-| Deployment             | Railway                 | Per-service deploy model fits microservices   |
-| Commit format          | Conventional Commits    | Feeds automated changelog + semver            |
-| Branch strategy        | Trunk-based off `main`  | Linear history, short-lived branches          |
+### COM-30 — Draw the system architecture diagram ✅
+
+Date: May 3, 2026
+Status: Done
+
+What was done:
+
+- Created docs/architecture.md with Mermaid source diagram
+- Saved docs/architecture.png for README embedding
+- Embedded diagram in README.md
+- Diagram shows full system: Browser → Clerk + Frontend →
+  API Gateway → Policy Engine + Doc Generator + DSAR Service
+  → PostgreSQL + Redis
+- External infra section: Railway, GitHub Actions, OpenAI API, GHCR
+- Color coded by layer: Gateway (blue), Services (coral),
+  Database (green), Auth (purple), Frontend (teal), Infra (gray)
+
+Decisions made:
+
+- Mermaid as source of truth — stays in repo, renders on GitHub
+- PNG for README and academic submission
+- DSAR → Redis connection included — DSAR needs queuing
+- API Gateway → Redis shown as cache connection (dashed)
+- OpenAI in infra section — not yet implemented, planned Sprint 1
