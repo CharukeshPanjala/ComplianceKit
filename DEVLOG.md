@@ -580,7 +580,30 @@ Blockers hit + fixes:
 - Healthcheck failing — app hardcoded port 8000, Railway injected 8080 — fixed with PORT=8000 variable
 - railway.toml skipped — set config file path in Railway dashboard settings
 
-Next: COM-24 — Set up staging environment
+Next: COM-24
+
+### COM-24 — Add all production environment variables to Railway ✅
+
+Date: May 3, 2026
+Status: Done
+
+What was done:
+
+- Added railway.toml for policy-engine, document-generator, dsar-service
+- Each stub service has healthcheck, restart policy configured
+- Added CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY to api-gateway in Railway
+- Added DATABASE_URL, REDIS_URL, ENVIRONMENT, PORT to all stub services
+- Connected policy-engine and document-generator to GitHub source in Railway
+- Set config file path for each service in Railway dashboard
+
+Decisions made:
+
+- Stub services use /health not /api/v1/health — simpler endpoint, no router
+- healthcheckTimeout 60s for stubs — they start faster than api-gateway
+- OpenAI key deferred — not used in any code yet, add in Sprint 1
+- DEBUG not set explicitly — defaults to False in BaseServiceSettings
+
+Blockers: None
 
 | Topic                  | Decision                | Rationale                                     |
 | ---------------------- | ----------------------- | --------------------------------------------- |
