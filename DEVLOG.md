@@ -648,6 +648,49 @@ Blockers hit + fixes:
 
 Next: COM-27 — Instrument FastAPI with OpenTelemetry tracing
 
+### COM-27 — Instrument FastAPI with OpenTelemetry tracing ✅
+
+Date: May 3, 2026
+Status: Done
+
+What was done:
+
+- Added opentelemetry-sdk, opentelemetry-instrumentation-fastapi,
+  opentelemetry-instrumentation-sqlalchemy, opentelemetry-exporter-otlp
+  to packages/common dependencies
+- Created common/tracing.py — configure_tracing() and get_tracer()
+- Wired FastAPIInstrumentor and SQLAlchemyInstrumentor into api-gateway main.py
+- ConsoleSpanExporter outputs traces to stdout for now
+- 5 unit tests passing
+- Verified end-to-end: traces appear in logs with trace_id, span_id,
+  http.method, http.route, http.status_code, duration
+
+Trace output verified:
+{
+"name": "GET /api/v1/health",
+"trace_id": "0x395d2f07e42db1874f678ebe8cde1cb0",
+"kind": "SpanKind.SERVER",
+"http.method": "GET",
+"http.route": "/api/v1/health",
+"http.status_code": 200,
+"service.name": "api-gateway"
+}
+
+Decisions made:
+
+- ConsoleSpanExporter for now — swap for OTLPSpanExporter later
+- opentelemetry-exporter-otlp added now — ready for future dashboard integration
+- Resource includes service.name and deployment.environment per service
+- Tests use Resource directly — OpenTelemetry doesn't allow resetting global
+  provider between tests
+
+Deferred:
+
+- Shipping traces to Jaeger/Honeycomb/Grafana Tempo — future observability ticket
+- Wiring tracing into other 3 services — when they have real code
+
+Next: COM-29 — System architecture diagram
+
 | Topic                  | Decision                | Rationale                                     |
 | ---------------------- | ----------------------- | --------------------------------------------- |
 | Monorepo style         | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
