@@ -605,6 +605,49 @@ Decisions made:
 
 Blockers: None
 
+### COM-26 — Structured JSON logging with tenant and request context ✅
+
+Date: May 3, 2026
+Status: Done
+
+What was done:
+
+- Added structlog to packages/common dependencies
+- Created common/log_config.py — configures structlog:
+  - Production: JSON output (searchable in Railway)
+  - Development: coloured pretty output
+- Created common/middleware/request_logger.py — LoggingMiddleware:
+  - Generates unique request_id (UUID) per request
+  - Binds tenant_id, user_id, org_role, method, path to every log line
+  - Adds X-Request-ID to response headers
+- Updated get_tenant_session() in common/db/tenant.py:
+  - Sets request.state.tenant_id, user_id, org_role after JWT verification
+  - Logging middleware picks these up automatically
+- Wired LoggingMiddleware into api-gateway main.py
+- 6 new tests, 16 total passing
+
+Log format (development):
+2026-05-03T18:39:21Z [info] request_started [common.middleware.request_logger]
+method=GET path=/api/v1/health request_id=ac3ceb19... tenant_id=anonymous
+
+Log format (production):
+{"level": "info", "tenant_id": "ten_xxx", "request_id": "abc-123", "message": "request_started"}
+
+Decisions made:
+
+- stdlib LoggerFactory over PrintLoggerFactory — needed for add_logger_name processor
+- org_role added to log context — useful for debugging permission issues
+- request.state set in get_tenant_session — single source of truth for auth context
+- Docker port conflict caused debugging delay — local testing must use non-Docker ports
+
+Blockers hit + fixes:
+
+- Port 8000 conflict with Docker — fixed by running uvicorn on port 8080 locally
+- structlog add_logger_name incompatible with PrintLoggerFactory — switched to stdlib LoggerFactory
+- Test used VALID_CLAIMS instead of loop claims — fixed
+
+Next: COM-27 — Instrument FastAPI with OpenTelemetry tracing
+
 | Topic                  | Decision                | Rationale                                     |
 | ---------------------- | ----------------------- | --------------------------------------------- |
 | Monorepo style         | Flat `services/` layout | Simpler than Turborepo for Python-heavy stack |
