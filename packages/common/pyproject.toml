@@ -12,6 +12,7 @@ dependencies = [
     "nanoid>=2.0.0",
     "pyjwt>=2.12.1",
     "httpx>=0.28.1",
+    "structlog>=25.5.0",
 ]
 
 [build-system]
