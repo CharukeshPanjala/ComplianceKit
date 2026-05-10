@@ -28,6 +28,11 @@ class Tenant(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    clerk_org_id: Mapped[str | None] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=True,
+    )
     plan: Mapped[TenantPlan] = mapped_column(
         Enum(TenantPlan),
         default=TenantPlan.FREE,
