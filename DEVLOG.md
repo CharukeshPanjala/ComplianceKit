@@ -781,3 +781,31 @@ Each ADR covers: Status, Context, Decision, Consequences.
 
 - Fixed `GRANT CONNECT ON DATABASE` hardcoded `compliancekit` name — Railway's DB has a different name. Switched to `DO $$ EXECUTE 'GRANT/REVOKE CONNECT ON DATABASE ' || current_database() ...`
 - Fixed `downgrade()` missing `REVOKE EXECUTE ON FUNCTION set_tenant_id(TEXT)` — Postgres refused to drop `app_user` while the function grant still existed
+
+## Sprint 1 — Company Profile & Onboarding
+
+### COM-130 — DB tables + Alembic migration ✅
+
+**Date:** May 14, 2026
+**Status:** Done
+
+**What was done:**
+
+- Added `gdpr_enabled`, `nis2_enabled`, `ai_act_enabled` boolean columns to `tenants` table
+- Created `company_profiles` table with all columns including `tech_stack` JSONB
+- Created `company_profile_versions` table for full audit trail
+- Enabled RLS on both new tables with `tenant_isolation` policy
+- Granted `app_user` access to both new tables
+- Added `generate_profile_id()` (`cp_`) and `generate_profile_version_id()` (`cpv_`) to `ids.py`
+- Created `CompanyProfile` and `CompanyProfileVersion` SQLAlchemy models
+- Added `Industry`, `CompanySize`, `B2BOrB2C`, `NumberOfDataSubjects` enums
+- Updated `SCHEMA.md` to reflect `cp_` prefix
+
+**Decisions made:**
+
+- `tech_stack` added as JSONB — needed for onboarding wizard step 2 (COM-137)
+- Regulation toggles as boolean columns (`gdpr_enabled` etc.) not JSONB — simpler and fast to query
+- All new fields on `company_profiles` nullable — profile is built incrementally during onboarding, not all at once
+- `company_profile_versions` has no `updated_at` — rows are write-once, never updated
+
+**Blockers: None**

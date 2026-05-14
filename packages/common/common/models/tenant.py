@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, Enum
+from sqlalchemy import String, DateTime, Boolean, func, Enum
 from sqlalchemy.orm import Mapped, mapped_column
 from common.models.base import Base
 from common.utils.ids import generate_tenant_id
@@ -38,6 +38,9 @@ class Tenant(Base):
         default=TenantPlan.FREE,
         nullable=False,
     )
+    gdpr_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    nis2_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ai_act_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
