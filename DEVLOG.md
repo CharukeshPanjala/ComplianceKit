@@ -809,3 +809,21 @@ Each ADR covers: Status, Context, Decision, Consequences.
 - `company_profile_versions` has no `updated_at` — rows are write-once, never updated
 
 **Blockers: None**
+
+### COM-133 — Unit + integration + RLS tests ✅
+
+**Date:** May 14, 2026
+**Status:** Done
+
+**What was done:**
+
+- Created `test_company_profile.py` — 6 unit tests for model IDs, defaults and structure
+- Created `test_rls_company_profile.py` — 3 RLS integration tests proving tenant isolation on company_profiles
+- All 30 tests passing
+
+**Decisions made:**
+
+- `assert not profile.is_complete` instead of `assert profile.is_complete is False` — SQLAlchemy defaults only apply at DB insert time, not object instantiation
+- Separate fixture `two_tenant_profiles` — keeps RLS test data isolated from the existing `two_tenants` fixture
+
+**Blockers: None**
