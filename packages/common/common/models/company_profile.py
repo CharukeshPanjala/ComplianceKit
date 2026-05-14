@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime, date
-from sqlalchemy import String, DateTime, Boolean, Date, Integer, func, Enum, ForeignKey, Text
+from sqlalchemy import String, DateTime, Boolean, Date, Integer, func, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from common.models.base import Base
