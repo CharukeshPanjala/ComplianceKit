@@ -827,3 +827,23 @@ Each ADR covers: Status, Context, Decision, Consequences.
 - Separate fixture `two_tenant_profiles` — keeps RLS test data isolated from the existing `two_tenants` fixture
 
 **Blockers: None**
+
+## 2026-05-14 — COM-131: Company Profile API
+
+**Branch:** `feat/COM-131-company-profile-api`
+
+### What was built
+
+- `services/api-gateway/app/api/v1/schemas/profile.py` — Pydantic v2 schemas: `ProfileCreate`, `ProfileUpdate`, `ProfileResponse`
+- `services/api-gateway/app/api/v1/endpoints/profile.py` — Three endpoints:
+  - `POST /api/v1/profile` — creates profile for tenant (409 if exists)
+  - `GET /api/v1/profile` — returns current tenant's profile (404 if not found)
+  - `PATCH /api/v1/profile` — saves a `CompanyProfileVersion` snapshot before applying updates
+- Wired profile router into `app/api/v1/router.py`
+- `services/api-gateway/tests/test_profile.py` — 6 unit tests covering all endpoints and error paths
+
+### Key decisions
+
+- All profile fields optional — built incrementally during onboarding wizard
+- PATCH saves a version snapshot first so the full audit trail is preserved before any field changes
+- `session.add = MagicMock()` in test fixture because SQLAlchemy's `add()` is synchronous (AsyncMock produces unawaited coroutine warnings)
