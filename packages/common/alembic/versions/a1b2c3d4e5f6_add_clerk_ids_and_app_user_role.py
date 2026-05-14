@@ -45,7 +45,12 @@ def upgrade() -> None:
         END $$;
     """)
 
-    op.execute("GRANT CONNECT ON DATABASE compliancekit TO app_user")
+    op.execute("""
+    DO $$
+    BEGIN
+        EXECUTE 'GRANT CONNECT ON DATABASE ' || current_database() || ' TO app_user';
+    END $$;
+    """)
     op.execute("GRANT USAGE ON SCHEMA public TO app_user")
     op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user")
     op.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user")
@@ -57,8 +62,14 @@ def downgrade() -> None:
     op.drop_column('tenants', 'clerk_org_id')
 
     # Revoke grants before dropping role
+    op.execute("REVOKE EXECUTE ON FUNCTION set_tenant_id(TEXT) FROM app_user")
     op.execute("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM app_user")
     op.execute("REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM app_user")
     op.execute("REVOKE USAGE ON SCHEMA public FROM app_user")
-    op.execute("REVOKE CONNECT ON DATABASE compliancekit FROM app_user")
+    op.execute("""
+    DO $$
+    BEGIN
+        EXECUTE 'REVOKE CONNECT ON DATABASE ' || current_database() || ' FROM app_user';
+    END $$;
+    """)    
     op.execute("DROP ROLE IF EXISTS app_user")

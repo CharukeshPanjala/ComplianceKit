@@ -5,26 +5,6 @@ Updated every time a ticket is closed.
 
 ---
 
-## Pre-Sprint 1 — Security & Reliability Fixes
-
-**Date:** May 10, 2026
-**Status:** Done
-
-**What was done:**
-
-- Added `clerk_org_id` to `tenants` and `clerk_user_id` to `users` — Alembic migration + SQLAlchemy models updated
-- Created `app_user` PostgreSQL role in migration with correct grants so `FORCE ROW LEVEL SECURITY` is enforced in production (previously bypassed — superuser connection skips RLS)
-- Switched Clerk webhook tenant/user lookup from slug to `clerk_org_id` — slug can change in Clerk, org ID is immutable
-- Replaced forever-cached JWKS dict with 1-hour `TTLCache` + one retry on `InvalidTokenError` to handle Clerk key rotation without a service restart
-- Fixed `LoggingMiddleware` to bind `tenant_id`/`user_id` after `call_next()` so `request_completed` log has real context instead of `"anonymous"`
-
-**Decisions made:**
-- `cachetools.TTLCache` over manual timestamp tracking — simpler, thread-safe
-- Retry-once pattern on `InvalidTokenError` — handles mid-rotation window without hammering Clerk's JWKS endpoint
-- `app_user` created in migration not conftest — production concern, not a test concern
-
-**Blockers: None**
-
 ---
 
 ## Sprint 0 — Foundation
@@ -775,3 +755,29 @@ ADRs written:
 - ADR-010 — Async SQLAlchemy over sync
 
 Each ADR covers: Status, Context, Decision, Consequences.
+
+## Pre-Sprint 1 — Security & Reliability Fixes
+
+**Date:** May 10, 2026
+**Status:** Done
+
+**What was done:**
+
+- Added `clerk_org_id` to `tenants` and `clerk_user_id` to `users` — Alembic migration + SQLAlchemy models updated
+- Created `app_user` PostgreSQL role in migration with correct grants so `FORCE ROW LEVEL SECURITY` is enforced in production (previously bypassed — superuser connection skips RLS)
+- Switched Clerk webhook tenant/user lookup from slug to `clerk_org_id` — slug can change in Clerk, org ID is immutable
+- Replaced forever-cached JWKS dict with 1-hour `TTLCache` + one retry on `InvalidTokenError` to handle Clerk key rotation without a service restart
+- Fixed `LoggingMiddleware` to bind `tenant_id`/`user_id` after `call_next()` so `request_completed` log has real context instead of `"anonymous"`
+
+**Decisions made:**
+
+- `cachetools.TTLCache` over manual timestamp tracking — simpler, thread-safe
+- Retry-once pattern on `InvalidTokenError` — handles mid-rotation window without hammering Clerk's JWKS endpoint
+- `app_user` created in migration not conftest — production concern, not a test concern
+
+**Blockers: None**
+
+**Hotfix — May 14, 2026**
+
+- Fixed `GRANT CONNECT ON DATABASE` hardcoded `compliancekit` name — Railway's DB has a different name. Switched to `DO $$ EXECUTE 'GRANT/REVOKE CONNECT ON DATABASE ' || current_database() ...`
+- Fixed `downgrade()` missing `REVOKE EXECUTE ON FUNCTION set_tenant_id(TEXT)` — Postgres refused to drop `app_user` while the function grant still existed
