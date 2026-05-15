@@ -11,3 +11,6 @@ def generate_profile_id() -> str:
 
 def generate_profile_version_id() -> str:
     return f"cpv_{generate(size=8)}"
+
+def generate_tool_id() -> str:
+    return f"tol_{generate(size=8)}"
