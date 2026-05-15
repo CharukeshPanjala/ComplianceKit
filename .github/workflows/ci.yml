@@ -58,7 +58,6 @@ jobs:
   test-frontend:
     name: Frontend — typecheck + lint
     runs-on: ubuntu-latest
-    if: false
     steps:
       - uses: actions/checkout@v4
 
@@ -76,8 +75,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
-        working-directory: frontend
-
       - name: TypeScript typecheck
         run: pnpm typecheck
         working-directory: frontend
