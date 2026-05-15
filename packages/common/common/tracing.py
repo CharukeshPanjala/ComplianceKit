@@ -1,14 +1,15 @@
+import os
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.resources import Resource
 
 
 def configure_tracing(service_name: str, environment: str = "development") -> None:
     """
     Configure OpenTelemetry tracing.
-    Outputs traces to stdout for now.
-    In production, swap ConsoleSpanExporter for OTLPSpanExporter.
+    Exports to OTLP if OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    In dev/test, runs with no exporter — spans are created but not exported.
     """
     resource = Resource.create({
         "service.name": service_name,
@@ -17,10 +18,11 @@ def configure_tracing(service_name: str, environment: str = "development") -> No
 
     provider = TracerProvider(resource=resource)
 
-    # output traces to stdout — swap for OTLP exporter later
-    exporter = ConsoleSpanExporter()
-    processor = BatchSpanProcessor(exporter)
-    provider.add_span_processor(processor)
+    otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if otlp_endpoint:
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
 
     trace.set_tracer_provider(provider)
 

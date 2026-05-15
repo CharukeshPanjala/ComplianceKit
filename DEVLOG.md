@@ -847,3 +847,47 @@ Each ADR covers: Status, Context, Decision, Consequences.
 - All profile fields optional — built incrementally during onboarding wizard
 - PATCH saves a version snapshot first so the full audit trail is preserved before any field changes
 - `session.add = MagicMock()` in test fixture because SQLAlchemy's `add()` is synchronous (AsyncMock produces unawaited coroutine warnings)
+
+## 2026-05-14 — COM-132: SaaS Tools Registry
+
+**Branch:** `feat/COM-132-saas-tools`
+
+### What was built
+
+- `packages/common/common/models/saas_tool.py` — `SaasTool` model (global, no RLS)
+- `packages/common/alembic/versions/dd4c036824ba_create_saas_tools_table.py` — creates table + seeds 200 tools across 26 categories
+- `services/api-gateway/app/api/v1/schemas/tool.py` — `ToolCreate`, `ToolResponse`
+- `services/api-gateway/app/api/v1/endpoints/tools.py` — `GET /api/v1/tools` (list + category filter), `POST /api/v1/tools` (add custom tool)
+- `services/api-gateway/tests/test_tools.py` — 6 tests covering list, filter, empty, create, dedup, default category
+
+### Key decisions
+
+- 200 tools seeded across 26 categories covering cloud, payments, CRM, HR, EOR, security, analytics and more
+- `POST /tools` is idempotent — case-insensitive dedup returns existing tool rather than erroring
+- No DELETE/PATCH — tools are global reference data, modifications are admin-only via DB
+- `is_active` flag allows hiding tools without deleting them
+
+## 2026-05-15 — COM-132: SaaS Tools Registry
+
+**Branch:** `feat/COM-132-saas-tools`
+
+### What was built
+
+- `packages/common/common/models/saas_tool.py` — `SaasTool` model (global, no RLS)
+- Alembic migration — creates `saas_tools` table and seeds 200 tools across 26 categories
+- `services/api-gateway/app/api/v1/schemas/tool.py` — `ToolCreate`, `ToolResponse`
+- `services/api-gateway/app/api/v1/endpoints/tools.py` — `GET /api/v1/tools` (list + category filter), `POST /api/v1/tools` (add custom tool, case-insensitive dedup)
+- `services/api-gateway/tests/test_tools.py` — 6 tests
+
+### Key decisions
+
+- 200 tools seeded across 26 categories — cloud, payments, CRM, HR, EOR, security, analytics and more
+- `POST /tools` is idempotent — duplicate names return existing tool rather than erroring
+- No DELETE/PATCH — global reference data, admin-only via DB
+- `is_active` flag allows hiding tools without deleting them
+
+### Fix: OTEL logging errors in tests
+
+- `ConsoleSpanExporter` + `BatchSpanProcessor` caused background thread crash after pytest closed stdout
+- Fixed `packages/common/common/tracing.py` to only attach an exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
+- Dev/test runs with no exporter — no background thread, clean test output
