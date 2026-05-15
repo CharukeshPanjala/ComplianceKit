@@ -18,6 +18,7 @@ node_modules/
 *.tsbuildinfo
 .cache/
 out/
+next-env.d.ts
 
 # Env files
 .env
