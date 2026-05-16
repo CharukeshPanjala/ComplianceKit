@@ -2,7 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 
 export default async function DashboardPage() {
   const user = await currentUser();
-
+  throw new Error("Sentry test error");
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold">Welcome, {user?.firstName}!</h1>
