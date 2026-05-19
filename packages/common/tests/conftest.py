@@ -6,7 +6,6 @@ from sqlalchemy import text
 
 from common.models.tenant import Tenant, TenantPlan
 from common.models.user import User, UserRole
-from common.utils.ids import generate_tenant_id, generate_user_id
 
 SUPERUSER_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit"
 APP_USER_URL = "postgresql+asyncpg://app_user:app_password@localhost:5432/compliancekit"
@@ -85,12 +84,12 @@ async def two_tenants(db_session):
     await db_session.execute(text("SELECT set_tenant_id('bypass-rls-test')"))
 
     tenant_a = Tenant(
-        id=uuid.uuid4(), tenant_id=generate_tenant_id(),
+        id=uuid.uuid4(), tenant_id="org_test_tenant_a",
         name="Tenant A", slug=f"tenant-a-{uuid.uuid4().hex[:6]}",
         plan=TenantPlan.FREE,
     )
     tenant_b = Tenant(
-        id=uuid.uuid4(), tenant_id=generate_tenant_id(),
+        id=uuid.uuid4(), tenant_id="org_test_tenant_b",
         name="Tenant B", slug=f"tenant-b-{uuid.uuid4().hex[:6]}",
         plan=TenantPlan.FREE,
     )
@@ -99,13 +98,13 @@ async def two_tenants(db_session):
     await db_session.flush()
 
     user_a = User(
-        id=uuid.uuid4(), user_id=generate_user_id(),
+        id=uuid.uuid4(), user_id="user_test_user_a",
         tenant_id=tenant_a.tenant_id,
         email=f"user-a-{uuid.uuid4().hex[:6]}@test.com",
         role=UserRole.ADMIN,
     )
     user_b = User(
-        id=uuid.uuid4(), user_id=generate_user_id(),
+        id=uuid.uuid4(), user_id="user_test_user_b",
         tenant_id=tenant_b.tenant_id,
         email=f"user-b-{uuid.uuid4().hex[:6]}@test.com",
         role=UserRole.ADMIN,

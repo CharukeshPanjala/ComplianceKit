@@ -4,7 +4,7 @@ import pytest_asyncio
 from sqlalchemy import text
 from common.models.company_profile import CompanyProfile
 from common.models.tenant import Tenant, TenantPlan
-from common.utils.ids import generate_tenant_id, generate_profile_id
+from common.utils.ids import generate_profile_id
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -13,12 +13,12 @@ async def two_tenant_profiles(db_session):
     await db_session.execute(text("SELECT set_tenant_id('bypass-rls-test')"))
 
     tenant_a = Tenant(
-        id=uuid.uuid4(), tenant_id=generate_tenant_id(),
+        id=uuid.uuid4(), tenant_id=f"org_test_{uuid.uuid4().hex[:8]}",
         name="Profile Tenant A", slug=f"profile-tenant-a-{uuid.uuid4().hex[:6]}",
         plan=TenantPlan.FREE,
     )
     tenant_b = Tenant(
-        id=uuid.uuid4(), tenant_id=generate_tenant_id(),
+        id=uuid.uuid4(), tenant_id=f"org_test_{uuid.uuid4().hex[:8]}",
         name="Profile Tenant B", slug=f"profile-tenant-b-{uuid.uuid4().hex[:6]}",
         plan=TenantPlan.FREE,
     )
@@ -98,3 +98,18 @@ class TestCompanyProfileRLS:
         result = await app_session.execute(text("SELECT * FROM company_profiles"))
         assert len(result.fetchall()) == 0, \
             "RLS FAILED — data returned with invalid tenant context"
+        
+    @pytest.mark.asyncio
+    async def test_tenant_a_cannot_see_tenant_b_profile_versions(self, app_session, two_tenant_profiles):
+        """Tenant A cannot see Tenant B's company profile versions."""
+        tenant_a, tenant_b, _, _ = two_tenant_profiles
+        await app_session.execute(
+            text("SELECT set_tenant_id(:tid)"), {"tid": tenant_a.tenant_id}
+        )
+        result = await app_session.execute(
+            text("SELECT tenant_id FROM company_profile_versions")
+        )
+        tenant_ids = {row.tenant_id for row in result.fetchall()}
+
+        assert tenant_b.tenant_id not in tenant_ids, \
+            "RLS FAILED — Tenant A can see Tenant B profile versions"

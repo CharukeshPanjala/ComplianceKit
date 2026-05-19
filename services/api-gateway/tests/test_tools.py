@@ -158,3 +158,9 @@ class TestAddTool:
 
         assert response.status_code == 201
         assert response.json()["category"] == "other"
+    
+    def test_post_tool_with_no_name_returns_422(self, tools_client):
+        """POST /tools with no name field → 422 validation error."""
+        test_client, _ = tools_client
+        response = test_client.post("/api/v1/tools", json={})
+        assert response.status_code == 422
