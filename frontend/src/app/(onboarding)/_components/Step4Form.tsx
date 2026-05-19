@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
-import { SelectCard } from "@/components/ui/SelectCard";
 import { CheckboxCard } from "@/components/ui/CheckboxCard";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { clientApiFetch } from "@/lib/clientApi";
@@ -189,11 +188,13 @@ export default function Step4Form({ initialData }: Props) {
   function Navigation() {
     return (
       <div className={styles.nav}>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         <Button
           type="button"
           variant="secondary"
-          onClick={() => router.push("/onboarding/step/3" as any)}
+          onClick={() =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            router.push("/onboarding/step/3" as any)
+          }
         >
           ← Back
         </Button>

@@ -178,11 +178,13 @@ export default function Step3Form({ initialData }: Props) {
   function Navigation() {
     return (
       <div className={styles.nav}>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         <Button
           type="button"
           variant="secondary"
-          onClick={() => router.push("/onboarding/step/2" as any)}
+          onClick={() =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            router.push("/onboarding/step/2" as any)
+          }
         >
           ← Back
         </Button>
