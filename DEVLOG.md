@@ -846,26 +846,7 @@ Each ADR covers: Status, Context, Decision, Consequences.
 
 - All profile fields optional — built incrementally during onboarding wizard
 - PATCH saves a version snapshot first so the full audit trail is preserved before any field changes
-- `session.add = MagicMock()` in test fixture because SQLAlchemy's `add()` is synchronous (AsyncMock produces unawaited coroutine warnings)
-
-## 2026-05-14 — COM-132: SaaS Tools Registry
-
-**Branch:** `feat/COM-132-saas-tools`
-
-### What was built
-
-- `packages/common/common/models/saas_tool.py` — `SaasTool` model (global, no RLS)
-- `packages/common/alembic/versions/dd4c036824ba_create_saas_tools_table.py` — creates table + seeds 200 tools across 26 categories
-- `services/api-gateway/app/api/v1/schemas/tool.py` — `ToolCreate`, `ToolResponse`
-- `services/api-gateway/app/api/v1/endpoints/tools.py` — `GET /api/v1/tools` (list + category filter), `POST /api/v1/tools` (add custom tool)
-- `services/api-gateway/tests/test_tools.py` — 6 tests covering list, filter, empty, create, dedup, default category
-
-### Key decisions
-
-- 200 tools seeded across 26 categories covering cloud, payments, CRM, HR, EOR, security, analytics and more
-- `POST /tools` is idempotent — case-insensitive dedup returns existing tool rather than erroring
-- No DELETE/PATCH — tools are global reference data, modifications are admin-only via DB
-- `is_active` flag allows hiding tools without deleting them
+- `session.add = MagicMock()` in test fixture because SQLAlchemy's `add()` is synchronous (AsyncMock produces unawaited coroutine warnings
 
 ## 2026-05-15 — COM-132: SaaS Tools Registry
 
@@ -891,3 +872,231 @@ Each ADR covers: Status, Context, Decision, Consequences.
 - `ConsoleSpanExporter` + `BatchSpanProcessor` caused background thread crash after pytest closed stdout
 - Fixed `packages/common/common/tracing.py` to only attach an exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
 - Dev/test runs with no exporter — no background thread, clean test output
+
+### COM-133 — Write unit and integration tests for the company profile API ✅
+
+**Date:** May 14–20, 2026
+**Status:** Done
+
+**What was done:**
+
+- Created `test_company_profile.py` — 6 unit tests for model IDs, defaults and structure
+- Created `test_rls_company_profile.py` — 4 RLS integration tests proving tenant isolation
+  on `company_profiles` and `company_profile_versions`
+- Expanded `test_webhooks.py` — 11 new tests covering `organizationMembership.created`
+  handler (all edge cases: missing keys, empty IDs, duplicate guard, role mapping)
+- Added `test_user_created_empty_email_addresses_returns_200` — regression test for
+  IndexError bug fixed during Clerk integration
+- Expanded `test_profile.py` — 3 new tests: POST with no body → 201, PATCH invalid
+  enum → 422, PATCH invalid data_role → 422
+- Added `test_tools.py` — POST with no name → 422
+- Expanded `test_clerk_auth.py` — 2 new tests: legacy `org_id` field fallback,
+  `o.id` takes priority over `org_id`
+- Rewrote `test_clerk_auth.py` — old tests patched `_get_jwks` which no longer exists;
+  rewritten to mock `_clerk.authenticate_request` matching current SDK implementation
+- Fixed `test_profile.py` mocks — added `data_role = None` to `make_mock_profile()`
+  and `fake_refresh()` functions (Sprint 1 field added, tests not updated)
+- Fixed `test_rls_company_profile.py` — removed `generate_tenant_id` import
+  (function deleted when switching to Clerk IDs)
+- Added `--import-mode=importlib` to root `pyproject.toml` — resolves conftest
+  naming conflict when running both test suites
+- Created `Makefile` at repo root — `make test`, `make test-api`, `make test-common`,
+  `make up/down/rebuild/logs` for all services individually
+
+**Test results:** 64 passed (31 api-gateway + 33 common)
+
+**Decisions made:**
+
+- Separate `make test-api` and `make test-common` — different pytest configs
+  (asyncio AUTO vs STRICT), must run from different rootdirs
+- `&&` in `make test` — fail fast, second suite only runs if first passes
+
+**Blockers: None**
+
+---
+
+### Clerk Integration Fixes & End-to-End Onboarding — May 19-20, 2026
+
+**Status:** Done
+
+---
+
+#### Fix: Clerk IDs too long for VARCHAR(20)
+
+**Problem:** `StringDataRightTruncationError` — Clerk org IDs are 31 chars,
+columns were VARCHAR(20).
+
+**Root cause (deeper):** DB was storing internal `ten_xxx` IDs but JWT
+carried Clerk org IDs → FK violation would follow even if length was fixed.
+
+**Fix:**
+
+- Migrated all ID columns from `String(20)` → `String(50)`
+- Removed `clerk_org_id` and `clerk_user_id` shadow columns
+- Adopted Clerk IDs directly as DB primary identifiers
+- Removed `generate_tenant_id()` and `generate_user_id()` from `ids.py`
+- Alembic migration required DROP + recreate of all 4 RLS policies before
+  ALTER COLUMN (PostgreSQL blocks ALTER on policy-referenced columns)
+- Updated `conftest.py` and `seed.py` to use Clerk-style test IDs
+
+**Decisions made:**
+
+- Clerk IDs as DB identifiers — one less ID to manage, no mapping layer
+- String(50) — headroom for Clerk's current 31-char IDs + future growth
+
+---
+
+#### Fix: Clerk JWT verification — added JWT_KEY and authorized_parties
+
+**Problem:** `verify_token()` was not using `jwt_key` for offline
+verification or restricting `authorized_parties`.
+
+**Fix:**
+
+- Added `jwt_key: str` to `_ClerkSettings`
+- Added `authorized_parties=["http://localhost:3000"]` and
+  `jwt_key=_settings.jwt_key` to `AuthenticateRequestOptions`
+- Added `JWT_KEY` (PEM public key) to `.env`
+- Removed duplicate `model_config` (inherits from `BaseServiceSettings`)
+
+**Decisions made:**
+
+- `JWT_KEY` enables offline JWT verification — no network call to Clerk
+  on every request, faster and more resilient
+- `authorized_parties` restricts which frontend domains can authenticate —
+  prevents token reuse from other apps
+
+---
+
+#### Fix: docker-compose.yml healthcheck URL
+
+- api-gateway healthcheck was hitting `/health` — fixed to `/api/v1/health`
+
+---
+
+#### Feature: organizationMembership.created webhook handler
+
+**Problem:** `user.created` fires before the user joins any org —
+`organization_memberships` is always empty. Users were never getting
+inserted into the DB, causing FK violation on Step 2 of onboarding.
+
+**Fix:** Added `handle_membership_created()` handler:
+
+- Subscribed to `organizationMembership.created` in Clerk dashboard
+- Extracts `organization.id`, `public_user_data.user_id`,
+  `public_user_data.identifier` (email)
+- Maps `org:admin` → `UserRole.ADMIN`, anything else → `UserRole.MEMBER`
+- Guards: empty org_id, empty user_id, missing keys → early return
+- Duplicate guard — silent skip if user already exists
+
+**Decisions made:**
+
+- `organizationMembership.created` is the correct event for user
+  provisioning — both user and org info present in one payload
+- `user.created` kept for compatibility but always returns early
+
+---
+
+#### Fix: user.created empty email_addresses IndexError
+
+**Problem:** Clerk test payload sends `email_addresses: []` —
+accessing `[][0]` crashed with `IndexError`.
+
+**Fix:**
+
+```python
+email_addresses = data.get("email_addresses", [])
+email = email_addresses[0].get("email_address", "") if email_addresses else ""
+
+### Hotfix — Clerk Integration: Clerk IDs too long + auth gaps
+
+**Date:** May 19, 2026
+**Relates to:** COM-19, COM-18
+
+**What was done:**
+
+- **VARCHAR(20) → VARCHAR(50)** — Clerk org IDs are 31 chars; all `tenant_id`,
+  `user_id`, `changed_by` columns widened
+- **Dropped clerk_org_id / clerk_user_id shadow columns** — Clerk IDs now used
+  directly as DB primary identifiers; no mapping layer needed
+- **Alembic migration** — required DROP + recreate of all 4 RLS policies before
+  ALTER COLUMN (PostgreSQL blocks ALTER on policy-referenced columns)
+- **JWT_KEY added** — PEM public key from Clerk dashboard added to `.env`;
+  enables offline JWT verification without network call to Clerk
+- **authorized_parties** — restricted to `["http://localhost:3000"]` in
+  `AuthenticateRequestOptions`; prevents token reuse from other apps
+- **Fixed docker-compose.yml** — api-gateway healthcheck was hitting `/health`;
+  corrected to `/api/v1/health`
+- **Fixed user.created empty email_addresses** — `[][0]` crashed with `IndexError`;
+  fixed with `if email_addresses else ""`
+- Updated `conftest.py` and `seed.py` — replaced `generate_tenant_id()` with
+  Clerk-style test IDs (`org_test_xxx`)
+
+**Decisions made:**
+
+- Clerk IDs as DB identifiers — one less ID to manage, no mapping layer
+- `String(50)` — headroom for Clerk's current 31-char IDs + future growth
+- Offline JWT verification — faster, no Clerk API dependency on every request
+
+**Blockers hit + fixes:**
+
+- `FeatureNotSupportedError` — PostgreSQL blocks ALTER COLUMN TYPE when RLS
+  policy references the column; fixed by DROP policy → ALTER → recreate policy
+  in migration
+
+---
+
+### Hotfix — Clerk Integration: organizationMembership.created webhook
+
+**Date:** May 19, 2026
+**Relates to:** COM-19
+
+**What was done:**
+
+- Added `handle_membership_created()` to `webhooks.py`
+- Subscribed to `organizationMembership.created` in Clerk dashboard
+- Handler extracts `organization.id`, `public_user_data.user_id`,
+  `public_user_data.identifier` (email) from payload
+- Maps `org:admin` → `UserRole.ADMIN`, anything else → `UserRole.MEMBER`
+- Guards against empty org_id, empty user_id, missing keys → early return
+- Duplicate guard — silent skip if user already exists
+- Tested via Clerk dashboard Testing tab → user row inserted correctly
+
+**Root cause:** `user.created` fires before user joins any org —
+`organization_memberships` is always empty at that point.
+`organizationMembership.created` is the correct event — both user and org
+info present in one payload.
+
+**Blockers: None**
+
+---
+
+### COM-136 — Onboarding Step 1: Company profile form ✅
+### COM-137 — Onboarding Step 2: Tech stack selector ✅
+### COM-138 — Onboarding Step 3: Data categories selector ✅
+### COM-139 — Onboarding Step 4: Countries of operation ✅
+### COM-140 — Onboarding Step 5: Team setup and final submission ✅
+
+**Date:** May 19–20, 2026
+**Status:** Done
+
+**What was done:**
+
+- Tested all 5 onboarding steps end-to-end with real Clerk JWT auth
+- All steps call PATCH `/api/v1/profile` and persist correctly to PostgreSQL
+- Data persistence confirmed — refresh at each step shows previously saved data
+- `is_complete = true` correctly set after Step 5
+- Webhook flow confirmed — `organization.created` → tenant row,
+  `organizationMembership.created` → user row, onboarding proceeds without errors
+
+**Blockers hit + fixes:**
+
+- `StringDataRightTruncationError` — Clerk org ID (31 chars) exceeded VARCHAR(20);
+  fixed in Clerk Integration Hotfix above
+- `ForeignKeyViolationError` on Step 2 — `company_profile_versions.changed_by` FK
+  references `users` table; user row missing because webhook wasn't set up when
+  account was created; fixed by adding `organizationMembership.created` handler
+- Manual DB inserts required for dev account (tenant + user) — only needed
+  for accounts created before webhooks were configured; new signups fully automatic
+
+```

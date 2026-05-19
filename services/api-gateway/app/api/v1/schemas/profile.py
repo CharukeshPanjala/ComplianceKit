@@ -5,6 +5,7 @@ from common.models.company_profile import (
     CompanySize,
     B2BOrB2C,
     NumberOfDataSubjects,
+    DataRole
 )
 
 
@@ -14,6 +15,7 @@ class ProfileCreate(BaseModel):
     company_size: CompanySize | None = None
     b2b_or_b2c: B2BOrB2C | None = None
     number_of_data_subjects: NumberOfDataSubjects | None = None
+    data_role: DataRole | None = None
     website_url: str | None = None
     primary_jurisdiction: str | None = None
     uses_cloud_services: bool | None = None
@@ -40,6 +42,7 @@ class ProfileUpdate(BaseModel):
     company_size: CompanySize | None = None
     b2b_or_b2c: B2BOrB2C | None = None
     number_of_data_subjects: NumberOfDataSubjects | None = None
+    data_role: DataRole | None = None
     website_url: str | None = None
     primary_jurisdiction: str | None = None
     uses_cloud_services: bool | None = None
@@ -70,6 +73,7 @@ class ProfileResponse(BaseModel):
     company_size: CompanySize | None
     b2b_or_b2c: B2BOrB2C | None
     number_of_data_subjects: NumberOfDataSubjects | None
+    data_role: DataRole | None = None
     website_url: str | None
     primary_jurisdiction: str | None
     uses_cloud_services: bool | None

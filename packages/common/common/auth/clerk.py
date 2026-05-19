@@ -1,81 +1,52 @@
 import httpx
-import jwt
-from cachetools import TTLCache
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from clerk_backend_api import Clerk
+from clerk_backend_api.security.types import AuthenticateRequestOptions
+from fastapi import HTTPException, Request, status
 from pydantic import BaseModel
 
-CLERK_JWKS_URL = "https://api.clerk.dev/v1/jwks"
+from common.config import BaseServiceSettings
 
-# Cache JWKS for 1 hour — Clerk rotates keys periodically so we cannot cache forever
-_jwks_cache: TTLCache = TTLCache(maxsize=1, ttl=3600)
 
-security = HTTPBearer()
+class _ClerkSettings(BaseServiceSettings):
+    clerk_secret_key: str
+    jwt_key: str
+
+_settings = _ClerkSettings()
+_clerk = Clerk(bearer_auth=_settings.clerk_secret_key)
 
 
 class TokenClaims(BaseModel):
-    user_id: str        # Clerk user ID — sub claim
-    tenant_id: str      # Clerk org_id — maps to our tenant
-    org_role: str       # org:admin / org:member / org:viewer
+    user_id: str
+    tenant_id: str
+    org_role: str
 
 
-async def _get_jwks(force_refresh: bool = False) -> dict:
-    """Fetch Clerk's public keys. Cached for 1 hour, refreshed on demand."""
-    if not force_refresh and "jwks" in _jwks_cache:
-        return _jwks_cache["jwks"]
+async def verify_token(request: Request) -> TokenClaims:
+    httpx_request = httpx.Request(
+        method=request.method,
+        url=str(request.url),
+        headers=dict(request.headers),
+    )
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(CLERK_JWKS_URL)
-        response.raise_for_status()
-        _jwks_cache["jwks"] = response.json()
-        return _jwks_cache["jwks"]
-
-
-async def verify_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> TokenClaims:
-    """
-    FastAPI dependency — verifies Clerk JWT on every protected route.
-
-    Returns TokenClaims if valid.
-    Raises 401 if token is missing, invalid, expired, or has no org.
-
-    On InvalidTokenError, retries once with a fresh JWKS fetch to handle
-    mid-rotation failures gracefully.
-    """
-    token = credentials.credentials
-
-    try:
-        jwks = await _get_jwks()
-        claims = jwt.decode(
-            token,
-            jwks,
-            algorithms=["RS256"],
-            options={"verify_exp": True},
+    request_state = _clerk.authenticate_request(
+        httpx_request,
+        AuthenticateRequestOptions(
+            authorized_parties=["http://localhost:3000"],
+            jwt_key=_settings.jwt_key,
         )
+    )
 
-    except jwt.ExpiredSignatureError:
+    if not request_state.is_signed_in:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
+            detail=str(request_state.reason),
         )
-    except jwt.InvalidTokenError:
-        # Key may have rotated — retry once with a fresh fetch
-        try:
-            jwks = await _get_jwks(force_refresh=True)
-            claims = jwt.decode(
-                token,
-                jwks,
-                algorithms=["RS256"],
-                options={"verify_exp": True},
-            )
-        except jwt.InvalidTokenError as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid token: {str(e)}",
-            )
 
-    org_id = claims.get("org_id")
+    payload = request_state.payload or {}
+    org = payload.get("o") or {}
+    org_id = org.get("id") or payload.get("org_id")
+    org_role = org.get("rol") or payload.get("org_role", "org:member")
+
     if not org_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -83,7 +54,7 @@ async def verify_token(
         )
 
     return TokenClaims(
-        user_id=claims["sub"],
+        user_id=payload["sub"],
         tenant_id=org_id,
-        org_role=claims.get("org_role", "org:member"),
+        org_role=org_role,
     )

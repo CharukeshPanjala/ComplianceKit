@@ -39,6 +39,11 @@ class NumberOfDataSubjects(enum.Enum):
     UNDER_100K = "under_100k"
     OVER_100K = "over_100k"
 
+class DataRole(enum.Enum):
+    CONTROLLER = "controller"
+    PROCESSOR = "processor"
+    BOTH = "both"
+
 class CompanyProfile(Base):
     __tablename__ = "company_profiles"
 
@@ -53,7 +58,7 @@ class CompanyProfile(Base):
         default=generate_profile_id,
     )
     tenant_id: Mapped[str] = mapped_column(
-        String(20),
+        String(50),
         ForeignKey("tenants.tenant_id"),
         nullable=False,
         index=True,
@@ -63,6 +68,7 @@ class CompanyProfile(Base):
     company_size: Mapped[CompanySize | None] = mapped_column(Enum(CompanySize), nullable=True)
     b2b_or_b2c: Mapped[B2BOrB2C | None] = mapped_column(Enum(B2BOrB2C), nullable=True)
     number_of_data_subjects: Mapped[NumberOfDataSubjects | None] = mapped_column(Enum(NumberOfDataSubjects), nullable=True)
+    data_role: Mapped[DataRole | None] = mapped_column(Enum(DataRole), nullable=True)
     website_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     primary_jurisdiction: Mapped[str | None] = mapped_column(String(10), nullable=True)
     uses_cloud_services: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -111,7 +117,7 @@ class CompanyProfileVersion(Base):
         default=generate_profile_version_id,
     )
     tenant_id: Mapped[str] = mapped_column(
-        String(20),
+        String(50),
         ForeignKey("tenants.tenant_id"),
         nullable=False,
         index=True,
@@ -131,7 +137,7 @@ class CompanyProfileVersion(Base):
     ai_act_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     changed_fields: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     changed_by: Mapped[str | None] = mapped_column(
-        String(20),
+        String(50),
         ForeignKey("users.user_id"),
         nullable=True,
     )

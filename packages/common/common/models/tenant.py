@@ -4,7 +4,6 @@ from datetime import datetime
 from sqlalchemy import String, DateTime, Boolean, func, Enum
 from sqlalchemy.orm import Mapped, mapped_column
 from common.models.base import Base
-from common.utils.ids import generate_tenant_id
 
 
 class TenantPlan(enum.Enum):
@@ -21,18 +20,12 @@ class Tenant(Base):
         default=uuid.uuid4,
     )
     tenant_id: Mapped[str] = mapped_column(
-        String(20),
-        unique=True,
-        nullable=False,
-        default=generate_tenant_id,
-    )
+    String(50),
+    unique=True,
+    nullable=False,
+)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    clerk_org_id: Mapped[str | None] = mapped_column(
-        String(64),
-        unique=True,
-        nullable=True,
-    )
     plan: Mapped[TenantPlan] = mapped_column(
         Enum(TenantPlan),
         default=TenantPlan.FREE,

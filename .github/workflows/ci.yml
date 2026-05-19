@@ -29,6 +29,8 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       CLERK_WEBHOOK_SECRET: whsec_test
       ENVIRONMENT: test
+      CLERK_SECRET_KEY: sk_test_dummy
+      JWT_KEY: dummy_jwt_key
 
     steps:
       - uses: actions/checkout@v4

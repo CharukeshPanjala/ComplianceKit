@@ -7,6 +7,7 @@ from common.tracing import configure_tracing
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from common.db.session import engine
+from fastapi.middleware.cors import CORSMiddleware
 
 configure_logging(environment=settings.environment)
 configure_tracing(service_name="api-gateway", environment=settings.environment)
@@ -21,6 +22,13 @@ app = FastAPI(
 FastAPIInstrumentor.instrument_app(app)
 SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(LoggingMiddleware)
 app.include_router(router)
 

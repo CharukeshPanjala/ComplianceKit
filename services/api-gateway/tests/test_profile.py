@@ -65,6 +65,7 @@ def make_mock_profile(**kwargs):
     profile.nis2_data = None
     profile.ai_act_data = None
     profile.is_complete = False
+    profile.data_role = None
     for k, v in kwargs.items():
         setattr(profile, k, v)
     return profile
@@ -112,6 +113,7 @@ class TestCreateProfile:
             obj.nis2_data = None
             obj.ai_act_data = None
             obj.is_complete = False
+            obj.data_role = None
 
         mock_session.refresh = fake_refresh
 
@@ -139,6 +141,48 @@ class TestCreateProfile:
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"].lower()
 
+    def test_create_profile_with_no_body_returns_201(self, profile_client):
+        """POST /profile with empty body → 201 (all fields optional)."""
+        test_client, mock_session = profile_client
+        mock_profile = make_mock_profile()
+
+        no_result = MagicMock()
+        no_result.scalar_one_or_none.return_value = None
+        mock_session.execute = AsyncMock(return_value=no_result)
+        mock_session.flush = AsyncMock()
+
+        async def fake_refresh(obj):
+            obj.profile_id = mock_profile.profile_id
+            obj.tenant_id = mock_profile.tenant_id
+            obj.tenant_name = mock_profile.tenant_name
+            obj.industry = None
+            obj.company_size = None
+            obj.b2b_or_b2c = None
+            obj.number_of_data_subjects = None
+            obj.website_url = None
+            obj.primary_jurisdiction = None
+            obj.data_role = None
+            obj.uses_cloud_services = None
+            obj.cloud_providers = None
+            obj.primary_cloud_region = None
+            obj.has_on_premise_servers = None
+            obj.certifications = None
+            obj.has_compliance_officer = None
+            obj.dpo_name = None
+            obj.dpo_email = None
+            obj.legal_contact_email = None
+            obj.data_categories_processed = None
+            obj.processing_purposes = None
+            obj.data_subject_categories = None
+            obj.tech_stack = None
+            obj.gdpr_data = None
+            obj.nis2_data = None
+            obj.ai_act_data = None
+            obj.is_complete = False
+
+        mock_session.refresh = fake_refresh
+        response = test_client.post("/api/v1/profile", json={})
+        assert response.status_code == 201
 
 class TestGetProfile:
 
@@ -226,6 +270,7 @@ class TestUpdateProfile:
             obj.nis2_data = None
             obj.ai_act_data = None
             obj.is_complete = False
+            obj.data_role = None
 
         mock_session.refresh = fake_refresh
 
@@ -250,3 +295,21 @@ class TestUpdateProfile:
         response = test_client.patch("/api/v1/profile", json={"website_url": "https://x.com"})
 
         assert response.status_code == 404
+
+    def test_patch_with_invalid_industry_returns_422(self, profile_client):
+        """PATCH with invalid industry enum value → 422."""
+        test_client, _ = profile_client
+        response = test_client.patch(
+            "/api/v1/profile",
+            json={"industry": "INVALID_INDUSTRY"},
+        )
+        assert response.status_code == 422
+
+    def test_patch_with_invalid_data_role_returns_422(self, profile_client):
+        """PATCH with invalid data_role enum value → 422."""
+        test_client, _ = profile_client
+        response = test_client.patch(
+            "/api/v1/profile",
+            json={"data_role": "not_a_real_role"},
+        )
+        assert response.status_code == 422
