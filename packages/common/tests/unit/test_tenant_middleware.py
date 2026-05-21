@@ -30,7 +30,7 @@ class TestGetTenantSession:
         mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("common.db.tenant.AsyncSessionLocal", mock_factory):
+        with patch("common.db.tenant.AppUserSessionLocal", mock_factory):
             gen = get_tenant_session(request=make_mock_request(), claims=VALID_CLAIMS)
             await gen.__anext__()
 
@@ -63,7 +63,7 @@ class TestGetTenantSession:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            with patch("common.db.tenant.AsyncSessionLocal", mock_factory):
+            with patch("common.db.tenant.AppUserSessionLocal", mock_factory):
                 gen = get_tenant_session(request=make_mock_request(), claims=claims)
                 await gen.__anext__()
 
@@ -72,7 +72,7 @@ class TestGetTenantSession:
     @pytest.mark.asyncio
     async def test_no_token_raises_401(self):
         """Missing/invalid JWT → 401 before session is created."""
-        with patch("common.db.tenant.AsyncSessionLocal") as mock_factory:
+        with patch("common.db.tenant.AppUserSessionLocal") as mock_factory:
             with patch(
                 "common.auth.clerk.verify_token",
                 side_effect=HTTPException(status_code=401, detail="Token has expired"),

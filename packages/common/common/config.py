@@ -13,6 +13,16 @@ class BaseServiceSettings(BaseSettings):
     )
 
     database_url: str
+
+    app_user_database_url: str = ""
+
+    @field_validator("app_user_database_url", mode="before")
+    @classmethod
+    def fix_app_user_database_url(cls, v: str) -> str:
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+    
     redis_url: str = "redis://localhost:6379/0"
     environment: str = "development"
     debug: bool = False

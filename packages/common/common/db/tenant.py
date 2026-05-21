@@ -3,7 +3,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from common.auth.clerk import TokenClaims, verify_token
-from common.db.session import AsyncSessionLocal
+from common.db.session import AppUserSessionLocal
 
 
 async def get_tenant_session(
@@ -24,7 +24,7 @@ async def get_tenant_session(
     request.state.user_id = claims.user_id
     request.state.org_role = claims.org_role
 
-    async with AsyncSessionLocal() as session:
+    async with AppUserSessionLocal() as session:
         async with session.begin():
             await session.execute(
                 text("SELECT set_tenant_id(:tenant_id)"),

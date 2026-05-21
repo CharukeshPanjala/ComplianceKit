@@ -6,7 +6,7 @@ from common.middleware.request_logger import LoggingMiddleware
 from common.tracing import configure_tracing
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from common.db.session import engine
+from common.db.session import admin_engine
 from fastapi.middleware.cors import CORSMiddleware
 
 configure_logging(environment=settings.environment)
@@ -20,7 +20,7 @@ app = FastAPI(
 )
 
 FastAPIInstrumentor.instrument_app(app)
-SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
+SQLAlchemyInstrumentor().instrument(engine=admin_engine.sync_engine)
 
 app.add_middleware(
     CORSMiddleware,

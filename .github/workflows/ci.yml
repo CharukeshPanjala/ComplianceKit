@@ -26,6 +26,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit
+      APP_USER_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit
       REDIS_URL: redis://localhost:6379/0
       CLERK_WEBHOOK_SECRET: whsec_test
       ENVIRONMENT: test

@@ -1100,3 +1100,41 @@ info present in one payload.
   for accounts created before webhooks were configured; new signups fully automatic
 
 ```
+
+---
+
+## 2026-05-21 — COM-145: Switch api-gateway to app_user DB connection
+
+**Branch:** `feat/COM-145-rls-app-user`
+**Status:** Done
+
+### What was done
+
+- Created `app_user_engine` and `AppUserSessionLocal` in `common/db/session.py` — all authenticated requests now run as `app_user` (non-superuser), making RLS policies active at runtime
+- Kept `admin_engine` / `AdminSessionLocal` for webhook endpoints — superuser needed there to bypass RLS for user provisioning
+- Updated `common/db/tenant.py` — `get_tenant_session()` now uses `AppUserSessionLocal`
+- Updated `common/db/__init__.py` and `services/api-gateway/app/main.py` — renamed `engine` → `admin_engine`
+- Added `app_user_database_url` field to `BaseServiceSettings` with Railway URL fix validator
+- Added `APP_USER_DATABASE_URL` to `.env`, `.env.example`, and CI env block
+- Alembic migration `f2fc0fffc4df` — backfilled permissions on tables created after original `app_user` grant, added `ALTER DEFAULT PRIVILEGES FOR ROLE postgres` so all future tables are auto-granted to `app_user` without any manual intervention
+- Fixed `alembic.ini` — removed hardcoded `sqlalchemy.url = localhost` that was overriding env var inside Docker
+- Fixed `Makefile` migrate command — added absolute path `-c /app/packages/common/alembic.ini`
+- Updated `test_tenant_middleware.py` — patched `AppUserSessionLocal` instead of old `AsyncSessionLocal`
+
+### Key decisions
+
+- Two engines, not one — `admin_engine` (superuser, bypasses RLS) for webhooks only; `app_user_engine` (RLS enforced) for all API requests
+- `ALTER DEFAULT PRIVILEGES FOR ROLE postgres` — long-term fix so no migration author ever needs to manually grant permissions on new tables again
+- CI uses postgres superuser for both URLs — CI runs tests, not RLS enforcement; real isolation tested in `test_rls_company_profile.py`
+
+### Blockers hit + fixes
+
+- `ImportError: cannot import name 'engine'` — `common/db/__init__.py` and `main.py` still imported old `engine` name; updated to `admin_engine`
+- `alembic.ini` hardcoded `sqlalchemy.url = localhost` overriding container env var — commented out
+- Makefile `make migrate` missing `-c` flag — alembic couldn't find `script_location`
+- Docker containers started via Docker Desktop not recognised by `docker compose` — must always use `make up/down`, not Docker Desktop play button
+- Tenant + user missing from DB after container recreation — manually inserted via `make db`; permanent fix is Clerk webhooks for new signups
+
+**Test results:** 64 passed (31 api-gateway + 33 common)
+
+**Blockers: None**

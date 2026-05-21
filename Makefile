@@ -84,11 +84,9 @@ frontend:
 
 # ── Database ──────────────────────────────────────────────
 migrate:
-	docker compose -f infrastructure/docker/docker-compose.yml exec api-gateway uv run alembic upgrade head
-
+	docker compose -f infrastructure/docker/docker-compose.yml exec api-gateway uv run alembic -c /app/packages/common/alembic.ini upgrade head
 migrate-down:
-	docker compose -f infrastructure/docker/docker-compose.yml exec api-gateway uv run alembic downgrade -1
-
+	docker compose -f infrastructure/docker/docker-compose.yml exec api-gateway uv run alembic -c /app/packages/common/alembic.ini downgrade -1
 db:
 	docker exec -it compliancekit-postgres psql -U postgres -d compliancekit
 
