@@ -96,6 +96,7 @@ export function StepSidebar() {
           return isComplete ? (
             <Link
               key={step.number}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               href={`/onboarding/step/${step.number}` as any}
               className={rowClass}
             >
