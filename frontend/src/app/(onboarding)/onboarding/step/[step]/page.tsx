@@ -7,15 +7,9 @@ import Step4Form from "@/app/(onboarding)/_components/Step4Form";
 import Step5Form from "@/app/(onboarding)/_components/Step5Form";
 import type { Profile } from "@/types/profile";
 
-const TOTAL_STEPS = 5;
+// ── Constants ─────────────────────────────────────────────
 
-const STEP_TITLES: Record<number, string> = {
-  1: "Company Basics",
-  2: "Jurisdiction & Data",
-  3: "Tech Stack",
-  4: "Infrastructure",
-  5: "Regulations & Contacts",
-};
+const TOTAL_STEPS = 5;
 
 const STEP_SUBTITLES: Record<number, string> = {
   1: "Tell us about your company",
@@ -24,6 +18,20 @@ const STEP_SUBTITLES: Record<number, string> = {
   4: "How is your infrastructure set up?",
   5: "Almost done — compliance contacts",
 };
+
+const styles = {
+  card: "bg-white rounded-2xl shadow-sm border border-gray-100 p-8 md:p-10",
+  progressBar: "flex gap-1.5 mb-6",
+  progressSegment: {
+    base: "h-1 flex-1 rounded-full transition-all duration-500",
+    done: "bg-amber-500",
+    pending: "bg-amber-500/20",
+  },
+  stepLabel: "text-xs font-semibold text-amber-500 uppercase tracking-widest mb-1.5",
+  heading: "text-2xl font-bold text-navy leading-snug",
+  headerWrapper: "mb-8",
+};
+// ── Step content router ────────────────────────────────────
 
 function StepContent({ step, profile }: { step: number; profile: Profile | null }) {
   switch (step) {
@@ -41,6 +49,8 @@ function StepContent({ step, profile }: { step: number; profile: Profile | null 
       return null;
   }
 }
+
+// ── Page ──────────────────────────────────────────────────
 
 export default async function OnboardingStepPage({
   params,
@@ -62,29 +72,25 @@ export default async function OnboardingStepPage({
   } catch {}
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-      {/* Progress bar */}
-      <div className="mb-8">
-        <div className="flex justify-between text-sm text-gray-500 mb-2">
-          <span>
-            Step {step} of {TOTAL_STEPS}
-          </span>
-          <span className="font-medium text-gray-700">{STEP_TITLES[step]}</span>
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-1.5">
+    <div className={styles.card}>
+      <div className={styles.progressBar}>
+        {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
           <div
-            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+            key={s}
+            className={`${styles.progressSegment.base} ${
+              s <= step ? styles.progressSegment.done : styles.progressSegment.pending
+            }`}
           />
-        </div>
+        ))}
       </div>
 
-      {/* Step header */}
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold text-gray-900">{STEP_SUBTITLES[step]}</h1>
+      <div className={styles.headerWrapper}>
+        <p className={styles.stepLabel}>
+          Step {step} of {TOTAL_STEPS}
+        </p>
+        <h1 className={styles.heading}>{STEP_SUBTITLES[step]}</h1>
       </div>
 
-      {/* Step form */}
       <StepContent step={step} profile={profile} />
     </div>
   );
