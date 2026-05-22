@@ -1,16 +1,28 @@
+"use client";
+
+import { useState } from "react";
+
+// ── Styles ─────────────────────────────────────────────────
+
 const styles = {
   wrapper: "relative inline-flex items-center cursor-pointer group",
   icon: "w-4 h-4 text-gray-400",
   box: "absolute left-0 top-6 z-10 w-64 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg hidden group-hover:block",
 };
 
+// ── Types ──────────────────────────────────────────────────
+
 interface TooltipProps {
   text: string;
 }
 
+// ── Component ─────────────────────────────────────────────
+
 export function Tooltip({ text }: TooltipProps) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <span className={styles.wrapper}>
+    <span className={styles.wrapper} onClick={() => setOpen((o) => !o)}>
       <svg className={styles.icon} fill="currentColor" viewBox="0 0 20 20">
         <path
           fillRule="evenodd"
@@ -18,7 +30,7 @@ export function Tooltip({ text }: TooltipProps) {
           clipRule="evenodd"
         />
       </svg>
-      <span className={styles.box}>{text}</span>
+      <span className={`${styles.box} ${open ? "!block" : ""}`}>{text}</span>
     </span>
   );
 }

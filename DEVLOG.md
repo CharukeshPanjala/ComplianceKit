@@ -1138,3 +1138,49 @@ info present in one payload.
 **Test results:** 64 passed (31 api-gateway + 33 common)
 
 **Blockers: None**
+
+---
+
+## 2026-05-22 — COM-141: Onboarding Wizard Polish
+
+**Branch:** `feat/COM-141-onboarding-polish`
+**Status:** Done
+
+### What was done
+
+- **Brand colors** — Added Navy (`#1E3A5F`) and Amber (`#F59E0B`) to Tailwind v4 `@theme` block in `globals.css`; applied across all UI components (`Button`, `SelectCard`, `CheckboxCard`, `Input`, `Tooltip`)
+- **Sidebar step navigator** — New `StepSidebar` client component with logo, step list (completed = amber ✓, active = white, future = faded), and clickable completed steps via `<Link>`
+- **Two-column onboarding layout** — `(onboarding)/layout.tsx` rewritten as `h-screen flex` shell with sidebar + scrollable content area; form card centered with `max-w-4xl mx-auto`
+- **Progress bar + step header** — `[step]/page.tsx` redesigned with 5-segment amber progress bar and "Step X of 5" label
+- **Zod validation on all 5 forms** — All required fields validated with `{ shouldValidate: true }` on `setValue` calls so errors clear immediately on selection; Zod v4 `error` (not `required_error`) used for booleans; `superRefine` for conditional DPO fields
+- **`OtherInput` reusable component** — Chip-based custom input (draft → confirm on Enter/blur/Add click) used for "Other" across Step 1 (industry), Step 2 (data categories, subject categories, processing purposes), Step 4 (cloud providers), Step 5 (certifications)
+- **Back button auto-save** — All Back buttons now PATCH current form state before navigating; uses `watch()` to capture partial data silently (no validation block)
+- **Cross-step validation** — Step 5 final submit calls `getFirstIncompleteStep()` from `lib/validateOnboarding.ts`; redirects to first incomplete step with error message if any required fields are missing
+- **Sign-in / sign-up redesign** — `(auth)/layout.tsx` rewritten as split-panel: Navy brand panel (left, hidden on mobile) + Clerk form on warm white (right)
+
+### Key decisions
+
+- `const renderXxx = ()` pattern throughout all forms — avoids React remounting inner components on every render (single-keystroke focus loss bug)
+- Dedicated `toggleCategory / toggleSubject / togglePurpose` handlers in Step 2 — "Other" clearing logic inside the handler, not inline in JSX `onChange` props (consistent with Step 4's `toggleProvider`)
+- Back button uses `watch()` not `handleSubmit` — users should never be blocked from navigating back by validation errors
+- `getFirstIncompleteStep` in a dedicated `lib/validateOnboarding.ts` — reusable, testable, not buried in Step 5 JSX
+
+### Files changed
+
+- `frontend/src/app/globals.css`
+- `frontend/src/app/(auth)/layout.tsx`
+- `frontend/src/app/(onboarding)/layout.tsx`
+- `frontend/src/app/(onboarding)/onboarding/step/[step]/page.tsx`
+- `frontend/src/app/(onboarding)/_components/Step1Form.tsx` – `Step5Form.tsx`
+- `frontend/src/app/(onboarding)/_components/StepSidebar.tsx` _(new)_
+- `frontend/src/components/ui/Button.tsx`, `CheckboxCard.tsx`, `Input.tsx`, `SelectCard.tsx`, `Tooltip.tsx`
+- `frontend/src/components/ui/OtherInput.tsx` _(new)_
+- `frontend/src/lib/validateOnboarding.ts` _(new)_
+
+### Blockers hit + fixes
+
+- **React remounting / single-keystroke focus loss** — inner components defined as `const Comp = () =>` inside parent caused React to see a new component type on every render and remount; fixed by converting all to `const renderXxx = ()` and calling as `{renderXxx()}`
+- **Zod v4 `required_error` doesn't exist** — Zod v4 changed the API; `z.boolean({ required_error: "..." })` → `z.boolean({ error: "..." })`
+- **Typed routes error on `<Link href>`** — Next.js typed routes rejects template literal strings; fixed with `as any` cast (consistent with all other `router.push` calls in the codebase)
+
+**Blockers: None**
