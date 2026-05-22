@@ -281,6 +281,7 @@ export default function Step5Form({ initialData }: Props) {
         }),
       });
     } catch {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     router.push("/onboarding/step/4" as any);
   };
 

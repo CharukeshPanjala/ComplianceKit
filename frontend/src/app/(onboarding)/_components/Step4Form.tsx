@@ -343,6 +343,7 @@ export default function Step4Form({ initialData }: Props) {
         }),
       });
     } catch {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     router.push("/onboarding/step/3" as any);
   };
 

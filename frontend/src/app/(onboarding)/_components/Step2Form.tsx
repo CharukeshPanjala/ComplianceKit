@@ -390,6 +390,7 @@ export default function Step2Form({ initialData }: Props) {
         }),
       });
     } catch {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     router.push("/onboarding/step/1" as any);
   };
 

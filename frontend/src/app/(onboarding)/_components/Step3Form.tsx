@@ -328,6 +328,7 @@ export default function Step3Form({ initialData }: Props) {
         body: JSON.stringify({ tech_stack: watch("tech_stack") ?? [] }),
       });
     } catch {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     router.push("/onboarding/step/2" as any);
   };
 
