@@ -1994,3 +1994,191 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `infrastructure/docker/docker-compose.yml`
 - `.env`
 - `services/policy-engine/pyproject.toml`
+
+## Phase 3 — Compliance Dashboard
+
+**Date:** 2026-06-03
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+---
+
+## COM-167/72 — Dashboard Shell (Portal Layout + Sidebar + TopBar)
+
+### What was built
+
+- Updated `frontend/src/app/(portal)/layout.tsx` — added Sidebar + main content wrapper
+- Created `Sidebar.tsx` — navy sidebar matching onboarding design, nav items with "Soon" badges, sign out button, "← Back to Dashboard" link
+- Created `TopBar.tsx` — server component showing page title + user info
+- Updated `frontend/src/app/layout.tsx` — added `QueryProvider` (TanStack Query) + `ToastProvider` (Sonner)
+- Created `frontend/src/components/providers/QueryProvider.tsx` — TanStack Query client with retry, staleTime, refetchOnWindowFocus
+
+### Key Decisions
+
+- **TanStack Query over SWR** — 52M vs 11M weekly downloads, first-class mutations with optimistic updates, rollback, DevTools. Industry standard for compliance SaaS with polling + mutations
+- **Portal sidebar fixed position** — matches onboarding navy/amber design system
+- **`md:ml-64 lg:ml-72`** — main content offset matches sidebar width responsively
+
+### Files Changed
+
+- `frontend/src/app/(portal)/layout.tsx`
+- `frontend/src/app/(portal)/_components/Sidebar.tsx` ← new
+- `frontend/src/app/(portal)/_components/TopBar.tsx` ← new
+- `frontend/src/app/layout.tsx`
+- `frontend/src/components/providers/QueryProvider.tsx` ← new
+- `frontend/src/components/ui/Toast.tsx` ← new
+- `frontend/src/components/ui/Modal.tsx` ← new
+- `frontend/src/components/ui/Skeleton.tsx` ← new
+
+---
+
+## COM-168/73/74 — Compliance Score Widget + Regulation Cards
+
+### What was built
+
+- Created `ScoreGauge.tsx` — animated SVG circular gauge, animates counter from 0 to score on mount, colour-coded by risk level (green/amber/orange/red)
+- Created `RegulationCard.tsx` — 6 states: never_run, pending/running (with spinner + timeout messages), completed (with gauge), failed (with retry), not_applicable
+- Created `AssessmentSection.tsx` — orchestrates all 3 regulation cards, auto-triggers assessments on first visit, invalidates TanStack Query cache on trigger
+
+### Key Decisions
+
+- **Auto-trigger on first visit** — when `hasNeverRunAssessment` is true, immediately triggers all applicable regulations in parallel
+- **Applicable regulations** — GDPR always; NIS2 only if `nis2_sectors` not empty; EU AI Act only if `uses_ai = true`
+- **Polling every 3s** — `useAssessmentPolling` hook inside `RegulationCard` polls the specific assessment until completed or failed
+- **Timeout messages** — 60s "Taking longer than expected", 5min "Something went wrong" — app never breaks silently
+- **`latest` endpoint returns ALL statuses** — fixed to return pending/running assessments too (not just completed), so polling can start immediately
+
+### Files Changed
+
+- `frontend/src/app/(portal)/dashboard/_components/ScoreGauge.tsx` ← new
+- `frontend/src/app/(portal)/dashboard/_components/RegulationCard.tsx` ← new
+- `frontend/src/app/(portal)/dashboard/_components/AssessmentSection.tsx` ← new
+- `services/policy-engine/app/routers/assessments.py` — fixed `latest` endpoint status filter
+
+---
+
+## COM-169/75 — Gap List + Article Detail Modal + Gap Resolve
+
+### What was built
+
+- Created `GapList.tsx` — search + 4 filters (severity, status, priority, resolved toggle), pagination (20 per page), empty states, error state with retry
+- Created `GapItem.tsx` — gap row with severity dot, article name, category, fine exposure badge, status badge, chevron
+- Created `GapDetailModal.tsx` — article title, severity/status/chapter badges, fine exposure warning, remediation steps numbered list, evidence used, notes textarea, resolve button
+- Created `GapResolveButton.tsx` — resolve/unresolve with optimistic update + rollback on failure, resolved banner with date
+
+### Key Decisions
+
+- **Optimistic updates** — gap resolves instantly in UI, reverts if API fails. Uses TanStack Query `onMutate`/`onError` pattern
+- **Pagination not infinite scroll** — compliance workflows need methodical review, not infinite scrolling
+- **Client-side search** — search by article/category filters the current page without extra API call
+- **`not_applicable` gaps excluded** — these aren't actionable, excluded from the gap list by default
+
+### Files Changed
+
+- `frontend/src/app/(portal)/dashboard/_components/GapList.tsx` ← new
+- `frontend/src/app/(portal)/dashboard/_components/GapItem.tsx` ← new
+- `frontend/src/app/(portal)/dashboard/_components/GapDetailModal.tsx` ← new
+- `frontend/src/app/(portal)/dashboard/_components/GapResolveButton.tsx` ← new
+
+---
+
+## COM-170 — Remediation Roadmap + Score History
+
+### What was built
+
+- Created `RemediationRoadmap.tsx` — gaps grouped by priority (critical/high/medium/low), each group shows gaps with status badges, clickable to open gap detail modal
+- Created `ScoreTrendChart.tsx` — recharts line chart showing score over time, custom tooltip, empty state for first assessment, loading state
+
+### Files Changed
+
+- `frontend/src/app/(portal)/dashboard/_components/RemediationRoadmap.tsx` ← new
+- `frontend/src/app/(portal)/dashboard/_components/ScoreTrendChart.tsx` ← new
+
+---
+
+## COM-76 — Upcoming Deadlines Widget
+
+### What was built
+
+- Created `DeadlinesWidget.tsx` — shows gaps with `due_date` set, sorted by date, urgency config (overdue/soon/upcoming) with colour coding, max 5 items
+
+### Files Changed
+
+- `frontend/src/app/(portal)/dashboard/_components/DeadlinesWidget.tsx` ← new
+
+---
+
+## COM-190 — Profile Completeness Widget
+
+### What was built
+
+- Created `ProfileCompletenessWidget.tsx` — checks all 6 onboarding sections, animated progress bar, "Complete →" links to incomplete steps, "Profile complete" celebration message at 100%
+
+### Files Changed
+
+- `frontend/src/app/(portal)/dashboard/_components/ProfileCompletenessWidget.tsx` ← new
+
+---
+
+## Bonus — Quick Wins Widget
+
+### What was built
+
+- Created `QuickWinsWidget.tsx` — shows top 5 low-effort gaps (medium/low severity, not_met), one-click resolve with optimistic update, score boost message
+
+### Files Changed
+
+- `frontend/src/app/(portal)/dashboard/_components/QuickWinsWidget.tsx` ← new
+
+---
+
+## Bonus — API Layer + TanStack Query Hooks
+
+### What was built
+
+- `frontend/src/lib/assessmentApi.ts` — all assessment API calls with typed error classes (NetworkError, AssessmentApiError), graceful fallbacks, no crashes on failure
+- `frontend/src/lib/queryClient.ts` — TanStack Query client with retry=3, exponential backoff, refetchOnWindowFocus, refetchOnReconnect
+- Hooks: `useLatestAssessments`, `useAssessment`, `useGaps`, `useUpdateGap` (optimistic), `useAssessmentHistory`, `useTriggerAssessment`, `useAssessmentStats`
+
+### Files Changed
+
+- `frontend/src/lib/assessmentApi.ts` ← new
+- `frontend/src/lib/queryClient.ts` ← new
+- `frontend/src/lib/hooks/` ← new (7 hooks)
+- `frontend/src/types/assessment.ts` ← new
+
+---
+
+## Bonus — Backend Fixes
+
+### JSON serialization fix
+
+- **Problem**: `B2BOrB2C` enum not JSON serializable when storing `profile_snapshot` in JSONB
+- **Fix**: Added custom `json_serializer` to SQLAlchemy engines in `session.py` — handles all enum types across the entire app. One change, fixes everything
+- **Why not `str, enum.Enum`**: The serializer is cleaner — no need to change enum class definitions
+
+### Gap fields migration
+
+- Added `title`, `plain_english`, `remediation_hint` to `Gap` model — denormalized from Rule for display without joins
+- Migration `cbbf5b013bae`
+- ARQ worker now populates all 3 fields when creating gaps
+
+### CORS fix
+
+- Added `CORSMiddleware` to policy-engine `main.py`
+- Frontend calls policy-engine directly via `NEXT_PUBLIC_POLICY_URL`
+
+### What We Learned
+
+- **TanStack Query `latest` endpoint bug**: Original endpoint only returned `COMPLETED` assessments — polling never started because `assessment_id` was always null. Fixed to return most recent assessment regardless of status
+- **`json_serializer` on engine**: The right place to fix enum JSON serialization — one config, applies to all JSONB columns everywhere. Industry standard
+- **`pg_enum()` vs `json_serializer`**: Two different problems. `pg_enum()` fixes PostgreSQL native enum column writes. `json_serializer` fixes JSONB column serialization. Both needed
+- **CORS must be configured on the service receiving requests** — policy-engine needs its own CORS middleware since frontend calls it directly
+
+### Files Changed
+
+- `packages/common/common/db/session.py` — json_serializer
+- `packages/common/common/models/company_profile.py` — enum cleanup
+- `packages/common/alembic/versions/cbbf5b013bae_add_title_plain_english_remediation_.py` ← new
+- `services/policy-engine/app/main.py` — CORS middleware
+- `services/policy-engine/app/routers/assessments.py` — latest endpoint fix + gap resolve + history + stats endpoints
+- `services/policy-engine/app/workers/assessment.py` — populate title/plain_english/remediation_hint
