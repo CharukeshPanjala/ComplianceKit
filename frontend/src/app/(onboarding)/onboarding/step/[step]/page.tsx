@@ -5,11 +5,12 @@ import Step2Form from "@/app/(onboarding)/_components/Step2Form";
 import Step3Form from "@/app/(onboarding)/_components/Step3Form";
 import Step4Form from "@/app/(onboarding)/_components/Step4Form";
 import Step5Form from "@/app/(onboarding)/_components/Step5Form";
+import Step6Form from "@/app/(onboarding)/_components/Step6Form";
 import type { Profile } from "@/types/profile";
 
 // ── Constants ─────────────────────────────────────────────
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 const STEP_SUBTITLES: Record<number, string> = {
   1: "Tell us about your company",
@@ -17,6 +18,7 @@ const STEP_SUBTITLES: Record<number, string> = {
   3: "What tools and technologies do you use?",
   4: "How is your infrastructure set up?",
   5: "Almost done — compliance contacts",
+  6: "Final details — regulations, AI & cybersecurity",
 };
 
 const styles = {
@@ -45,6 +47,8 @@ function StepContent({ step, profile }: { step: number; profile: Profile | null 
       return <Step4Form initialData={profile} />;
     case 5:
       return <Step5Form initialData={profile} />;
+    case 6:
+      return <Step6Form initialData={profile} />;
     default:
       return null;
   }

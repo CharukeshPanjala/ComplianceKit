@@ -92,8 +92,9 @@ db:
 
 # ── Tests ─────────────────────────────────────────────────
 test:
-	uv run pytest services/api-gateway/tests/ -v
 	uv run pytest packages/common/tests/ -v
+	uv run pytest services/api-gateway/tests/ -v
+	uv run pytest services/policy-engine/tests/ -v
 
 test-api:
 	uv run pytest services/api-gateway/tests/ -v
@@ -112,3 +113,16 @@ dev:
 	up-docs down-docs restart-docs rebuild-docs logs-docs \
 	up-dsar down-dsar restart-dsar rebuild-dsar logs-dsar \
 	frontend migrate migrate-down db test test-api test-common dev
+
+# ── Seeders ───────────────────────────────────────────────
+seed:
+	cd packages/common && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit uv run python scripts/seeders/seed_all.py
+
+seed-gdpr:
+	cd packages/common && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit uv run python scripts/seeders/seed_gdpr.py
+
+seed-nis2:
+	cd packages/common && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit uv run python scripts/seeders/seed_nis2.py
+
+seed-euai:
+	cd packages/common && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit uv run python scripts/seeders/seed_eu_ai_act.py

@@ -12,7 +12,6 @@ import { FormField } from "@/components/ui/FormField";
 import { CheckboxCard } from "@/components/ui/CheckboxCard";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { clientApiFetch } from "@/lib/clientApi";
-import { getFirstIncompleteStep } from "@/lib/validateOnboarding";
 import type { Profile } from "@/types/profile";
 import { OtherInput } from "@/components/ui/OtherInput";
 
@@ -254,8 +253,8 @@ export default function Step5Form({ initialData }: Props) {
       <Button type="button" variant="secondary" onClick={() => onBack()}>
         ← Back
       </Button>
-      <Button type="submit" variant="success" loading={isSubmitting} loadingText="Submitting...">
-        Finish & Submit ✓
+      <Button type="submit" variant="primary" loading={isSubmitting} loadingText="Saving...">
+        Continue →
       </Button>
     </div>
   );
@@ -289,8 +288,6 @@ export default function Step5Form({ initialData }: Props) {
     setServerError(null);
     try {
       const token = await getToken();
-
-      // ── 1. Save step 5 ───────────────────────────────────
       const saveRes = await clientApiFetch("/api/v1/profile", token!, {
         method: "PATCH",
         body: JSON.stringify({
@@ -303,33 +300,14 @@ export default function Step5Form({ initialData }: Props) {
             ...otherCertifications,
           ],
           previous_regulatory_action: data.previous_regulatory_action ?? null,
-          is_complete: true,
         }),
       });
-
       if (!saveRes.ok) {
         const body = await saveRes.json().catch(() => ({}));
         throw new Error(body?.detail ?? "Failed to save. Please try again.");
       }
-
-      // ── 2. Cross-step validation ──────────────────────────
-      const profileRes = await clientApiFetch("/api/v1/profile", token!, { method: "GET" });
-      const profile = profileRes.ok ? await profileRes.json() : null;
-      const incompleteStep = getFirstIncompleteStep(profile);
-
-      if (incompleteStep) {
-        setServerError(
-          `Step ${incompleteStep} has required fields missing — taking you back to complete it.`
-        );
-        setTimeout(() => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          router.push(`/onboarding/step/${incompleteStep}` as any);
-        }, 1500);
-        return;
-      }
-
-      // ── 3. All complete → dashboard ───────────────────────
-      router.push("/dashboard");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      router.push("/onboarding/step/6" as any);
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Something went wrong.");
     }

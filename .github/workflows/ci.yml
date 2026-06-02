@@ -11,7 +11,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -57,6 +57,9 @@ jobs:
 
       - name: Run api-gateway tests
         run: uv run pytest services/api-gateway/tests -v
+
+      - name: Run policy-engine tests
+        run: uv run pytest services/policy-engine/tests -v
 
   test-frontend:
     name: Frontend — typecheck + lint

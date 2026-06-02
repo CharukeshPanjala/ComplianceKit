@@ -34,5 +34,21 @@ export const getFirstIncompleteStep = (profile: Profile | null): number | null =
   if (profile.has_compliance_officer == null || profile.previous_regulatory_action == null)
     return 5;
 
+  // ── Step 6 ────────────────────────────────────────────────
+  const gdpr = profile.gdpr_data ?? {};
+  if (
+    !Array.isArray(gdpr.lawful_bases) ||
+    (gdpr.lawful_bases as string[]).length === 0 ||
+    gdpr.processes_children_data == null ||
+    gdpr.transfers_outside_eea == null ||
+    gdpr.uses_data_processors == null ||
+    gdpr.has_breach_procedure == null ||
+    gdpr.has_dpia == null
+  )
+    return 6;
+
+  const ai = profile.ai_act_data ?? {};
+  if (ai.uses_ai == null) return 6;
+
   return null;
 };

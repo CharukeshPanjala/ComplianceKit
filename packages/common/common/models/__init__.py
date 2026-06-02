@@ -3,5 +3,18 @@ from common.models.tenant import Tenant
 from common.models.user import User
 from common.models.company_profile import CompanyProfile, CompanyProfileVersion
 from common.models.saas_tool import SaasTool
+from common.models.regulation import Regulation, RegulationVersion
+from common.models.rule import Rule, RuleVersion
 
-__all__ = ["Base", "Tenant", "User", "CompanyProfile", "CompanyProfileVersion", "SaasTool"]
+__all__ = [
+    "Base",
+    "Tenant",
+    "User",
+    "CompanyProfile",
+    "CompanyProfileVersion",
+    "SaasTool",
+    "Regulation",
+    "RegulationVersion",
+    "Rule",
+    "RuleVersion",
+]

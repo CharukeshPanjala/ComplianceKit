@@ -11,6 +11,7 @@ const STEPS = [
   { number: 3, label: "Tech Stack" },
   { number: 4, label: "Infrastructure" },
   { number: 5, label: "Regulations & Contacts" },
+  { number: 6, label: "Regulatory Details" },
 ];
 
 const styles = {
