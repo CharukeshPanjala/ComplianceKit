@@ -1623,3 +1623,374 @@ op.create_index('ix_rules_applicability_tags', 'rules',
 
 
 ```
+
+## COM-162 — Migrate Assessments and Gaps Tables + RLS
+
+**Date:** 2026-06-02
+**Branch:** feat/sprint-2-phase-2-assessment-engine
+
+### What was built
+
+- Created `Assessment` SQLAlchemy model (`packages/common/common/models/assessment.py`)
+- Created `Gap` SQLAlchemy model in same file
+- Added `generate_assessment_id()` → `asm_xxx` and `generate_gap_id()` → `gap_xxx` to `ids.py`
+- Alembic migration `12cd2212cee0` creating both tables with RLS
+
+### Assessment table
+
+Stores one row per compliance assessment run per tenant per regulation:
+
+- Score (0-100), risk_level, met/partial/not_met/unknown counts
+- `profile_snapshot` (JSONB) — profile state at time of assessment (critical for audit trail)
+- `previous_assessment_id` — FK to prior assessment for score delta tracking
+- `regulation_version_id` — which version of the regulation was assessed
+- `expires_at` — when to re-assess (drives upcoming deadlines widget)
+- RLS on `tenant_id`
+
+### Gap table
+
+Stores one row per rule per assessment:
+
+- Denormalized fields from rule (`severity`, `category`, `article`, `article_number`, `chapter`, `fine_tier`, `regulation_name`) — avoids joins for display performance
+- `status` — met | partial | not_met | unknown | not_applicable
+- `evidence` (JSONB) — what profile data triggered this evaluation
+- `profile_field_value` (JSONB) — exact value used for audit trail
+- `remediation_steps`, `remediation_resources` (JSONB) — personalised guidance
+- `assigned_to`, `due_date` — task assignment for remediation roadmap
+- `resolved`, `resolved_at`, `resolved_by` — resolution tracking
+- RLS on `tenant_id`
+
+### Key Decisions
+
+- **Denormalized display fields on gaps** — severity, category, article etc. copied from rule at assessment time. Avoids joins in every dashboard query. Trade-off: takes more storage, but gap list queries are 10x faster
+- **profile_snapshot on assessments** — when profile changes, historical scores remain accurate. Without this, you can't explain why score was 34% last month
+- **`not_applicable` as a gap status** — we store all 258 rules as gaps, including non-applicable ones. Makes it easy to show "why this rule doesn't apply to you"
+
+### What We Learned
+
+- Alembic autogenerate drops IVFFlat and GIN indexes every time — always manually remove those drop statements before running migration
+- RLS must be added manually to migration — Alembic never generates it
+
+### Files Changed
+
+- `packages/common/common/models/assessment.py` ← new
+- `packages/common/common/utils/ids.py`
+- `packages/common/common/models/__init__.py`
+- `packages/common/alembic/versions/12cd2212cee0_add_assessments_and_gaps_tables.py` ← new
+
+## COM-163 — Applicability Engine
+
+**Date:** 2026-06-02
+**Branch:** feat/sprint-2-phase-2-assessment-engine
+
+### What was built
+
+- Created `services/policy-engine/app/engine/applicability.py`
+- `ApplicabilityEngine` class that takes a profile + rules + regulation name
+- Returns `ApplicabilityResult` for each rule: `is_applicable` (bool) + `reason` (string for audit trail)
+
+### How it works
+
+1. Universal filters applied first (applies to all 258 rules)
+2. Routes to regulation-specific logic (GDPR/NIS2/EU AI Act)
+3. Returns list of results — scorer only evaluates applicable rules
+
+### Universal filters
+
+- `check_type = 'informational'` → always `not_applicable` (165 rules — awareness only)
+- B2B/B2C mismatch → `not_applicable`
+
+### GDPR applicability logic
+
+| Condition                         | Articles affected                                |
+| --------------------------------- | ------------------------------------------------ |
+| `gdpr_data` empty/null            | All GDPR rules → not applicable                  |
+| `data_role = processor`           | Arts. 13-26 (controller duties) → not applicable |
+| `consent` not in lawful_bases     | Art. 7 → not applicable                          |
+| `processes_children_data = false` | Art. 8 → not applicable                          |
+| No special category data          | Art. 9 → not applicable                          |
+| No criminal conviction data       | Art. 10 → not applicable                         |
+| No consent/contract basis         | Art. 20 → not applicable                         |
+| `uses_ai = false`                 | Art. 22 → not applicable                         |
+| `uses_data_processors = false`    | Arts. 19, 28, 29 → not applicable                |
+| `transfers_outside_eea = false`   | Arts. 44-49 → not applicable                     |
+| EU jurisdiction                   | Art. 27 → not applicable                         |
+
+### NIS2 applicability logic
+
+| Condition                           | Effect                                         |
+| ----------------------------------- | ---------------------------------------------- |
+| `nis2_data` empty/null              | All NIS2 → not applicable                      |
+| `nis2_sectors` empty                | All NIS2 → not applicable                      |
+| `company_size` in {"1-10", "11-50"} | All NIS2 → not applicable (micro/small exempt) |
+| `entity_type != "essential"`        | Art. 32 → not applicable                       |
+| `entity_type != "important"`        | Art. 33 → not applicable                       |
+| Not DNS/TLD sector                  | Art. 28 → not applicable                       |
+
+### EU AI Act applicability logic
+
+| Condition                | Effect                                            |
+| ------------------------ | ------------------------------------------------- |
+| `ai_act_data` empty/null | All AI Act → not applicable                       |
+| `uses_ai = false`        | All AI Act → not applicable                       |
+| No high-risk categories  | Arts. 8-49 (except 6,7) → not applicable          |
+| `role` not provider/both | Arts. 16-25 provider obligations → not applicable |
+| `role` not deployer/both | Arts. 26-27 deployer obligations → not applicable |
+| `gpai_model = false`     | Arts. 51-56 → not applicable                      |
+| EU jurisdiction          | Art. 22 (EU representative) → not applicable      |
+
+### Key Decisions
+
+- **`reason` field on every result** — full audit trail of why a rule was or wasn't applied. Essential for compliance audits — customers can ask "why doesn't Art. 44 apply to me?"
+- **`role = "both"` applies everything** — companies that are both provider and deployer get all obligations
+- **Informational filtered first** — before regulation-specific logic, saves processing
+- **NIS2 size threshold enforced** — micro/small companies (< 50 employees) are legally exempt from NIS2; we respect this
+
+### What We Learned
+
+- GDPR Art. 27 (EU representative) uses substring matching on jurisdiction — "Ireland" contains "ireland" which is in EU_JURISDICTIONS set. Handles all EU member states correctly
+- `data_role = "both"` edge case — must NOT skip any obligations, only `processor` alone skips controller duties
+
+### Files Changed
+
+- `services/policy-engine/app/engine/__init__.py` ← new
+- `services/policy-engine/app/engine/applicability.py` ← new
+
+## COM-164 — Per-Article Scoring Logic
+
+**Date:** 2026-06-02
+**Branch:** feat/sprint-2-phase-2-assessment-engine
+
+### What was built
+
+- Created `services/policy-engine/app/engine/scorer.py`
+- `Scorer` class that takes profile + applicability results
+- Returns `ScoringResult` per applicable rule: status, score, evidence, remediation_priority
+- `calculate_overall_score()` — weighted score (0-100) + risk level + counts
+
+### Scoring statuses
+
+| Status    | Score | Meaning                                |
+| --------- | ----- | -------------------------------------- |
+| `met`     | 100   | Company satisfies this requirement     |
+| `partial` | 50    | Partially satisfies — some gaps remain |
+| `not_met` | 0     | Clearly does not satisfy               |
+| `unknown` | 0     | Not enough profile data to evaluate    |
+
+### Severity weights
+
+| Severity | Weight |
+| -------- | ------ |
+| critical | 4      |
+| high     | 3      |
+| medium   | 2      |
+| low      | 1      |
+
+### Score formula
+
+- earned = sum(weight × score_multiplier) for each non-unknown rule
+- total = sum(weight) for each non-unknown rule
+- score = round(earned / total × 100)
+
+### Risk levels
+
+| Score | Risk level |
+| ----- | ---------- |
+| >= 80 | low        |
+| >= 60 | medium     |
+| >= 40 | high       |
+| < 40  | critical   |
+
+### What gets scored (Level 1 — profile_field rules only)
+
+| Rule            | Met when                              | Not met when                 | Unknown when                        |
+| --------------- | ------------------------------------- | ---------------------------- | ----------------------------------- |
+| Art. 6          | lawful_bases not empty                | lawful_bases empty           | —                                   |
+| Art. 33/34      | has_breach_procedure = true           | has_breach_procedure = false | has_breach_procedure = null         |
+| Art. 35/36      | has_dpia = true                       | has_dpia = false             | has_dpia = null                     |
+| Art. 37/38/39   | has_compliance_officer + name + email | —                            | no DPO or missing details → partial |
+| Arts. 44-49     | transfers + mechanisms                | transfers + no mechanisms    | —                                   |
+| NIS2 Art. 18/23 | has_incident_plan = true              | has_incident_plan = false    | has_incident_plan = null            |
+
+### What stays unknown (Levels 2-4 — future)
+
+- `policy_required` (32 rules) — need yes/no checklist
+- `document_required` (21 rules) — need document upload
+- `technical` (15 rules) — need technical verification
+
+Unknown rules are shown as gaps but excluded from score denominator — they don't penalise the score, they show what's left to evaluate.
+
+### Key Decisions
+
+- **Unknown excluded from score denominator** — if a company has 10 evaluable rules (all met) + 50 unknown rules, their score is 100/100 not 10/60. Unknown = "we don't know yet", not "you failed". This prevents penalising companies for incomplete data
+- **Partial for DPO with missing details** — `has_compliance_officer = true` but missing name/email → partial (50). They have a DPO, but documentation is incomplete
+- **Evidence on every result** — every ScoringResult records what profile data was used. Critical for audit trail and explaining score to customers
+- **`_result()` helper** — all scoring paths go through one helper to ensure consistent evidence recording and priority assignment
+
+### What We Learned
+
+- DPO scoring has 3 states: met (officer + name + email), partial (officer but missing details), unknown (no officer — might still be mandatory depending on processing)
+- Transfer rules have an interesting met case: when `transfers_outside_eea = false`, the rule is technically met (no transfers = compliant). Applicability engine handles the "not applicable" case separately
+
+### Files Changed
+
+- `services/policy-engine/app/engine/scorer.py` ← new
+
+## COM-165 — Remediation Generator
+
+**Date:** 2026-06-02
+**Branch:** feat/sprint-2-phase-2-assessment-engine
+
+### What was built
+
+- Created `services/policy-engine/app/engine/remediation.py`
+- `RemediationGenerator` class — converts scoring results to prioritised action items
+- `summary()` — aggregated counts by priority and status for dashboard
+
+### Priority ordering
+
+- `not_met + critical` → fix immediately
+- `not_met + high` → fix urgently
+- `unknown + critical` → gather data urgently
+- `unknown + high` → gather data
+- `partial + critical/high` → improve existing controls
+- `not_met + medium` → fix when possible
+- `unknown + medium/low` → lower priority data gathering
+- `partial + medium/low` → improve when possible
+
+### Fine exposure shown to users
+
+- `tier_2` → "Up to €20M or 4% of global annual turnover"
+- `tier_1` → "Up to €10M or 2% of global annual turnover"
+- No tier → None
+
+### Evidence needed messages (unknown rules only)
+
+- `policy_required` → "Please confirm whether this policy exists"
+- `document_required` → "Please upload or confirm the required document"
+- `technical` → "Please confirm whether this technical control is implemented"
+
+### Remediation steps fallback chain
+
+- Use seeded `remediation_steps` from rule if available
+- Fall back to `remediation_hint` as single step if steps empty
+- Empty list if neither exists
+
+### Key Decisions
+
+- **Met rules excluded** — no action needed, keeps list focused
+- **not_met ranked above unknown at same severity** — we know not_met is a problem; unknown might not be
+- **Fine exposure on every item** — showing "€20M or 4% global turnover" next to a critical gap motivates action
+- **`immediate_action_required` flag** — tells dashboard to show urgent banner when critical items exist
+
+### Files Changed
+
+- `services/policy-engine/app/engine/remediation.py` ← new
+
+---
+
+## COM-166 — Assessments API
+
+**Date:** 2026-06-02
+**Branch:** feat/sprint-2-phase-2-assessment-engine
+
+### What was built
+
+- Created `services/policy-engine/app/routers/assessments.py`
+- 4 endpoints on policy-engine service
+
+### Endpoints
+
+- `POST /api/v1/assessments` — triggers assessment, returns 202 immediately with `assessment_id`
+- `GET /api/v1/assessments/latest` — latest completed assessment per regulation for the tenant
+- `GET /api/v1/assessments/{id}` — status + score for a specific assessment
+- `GET /api/v1/assessments/{id}/gaps` — filterable gap list
+
+### Gap list filters
+
+- `?status=` — met | partial | not_met | unknown
+- `?severity=` — critical | high | medium | low
+- `?category=` — Security | Core Principles | etc.
+- `?remediation_priority=` — critical | high | medium | low
+- `?resolved=` — true | false
+- `?limit=` + `?offset=` — pagination (max 500)
+
+### Assessment flow
+
+- Validates profile is complete before running
+- Snapshots profile at assessment time → saved to `profile_snapshot`
+- Finds previous completed assessment → sets `previous_assessment_id`
+- Creates assessment row (status=pending)
+- Queues ARQ job via Redis
+- Returns 202 immediately — client polls GET for status
+
+### Key Decisions
+
+- **202 not 200** — assessment is async. Returning 200 would imply it's done
+- **`not_applicable` gaps excluded from gap list** — not actionable. Dashboard only shows gaps the company can act on
+- **Profile completeness check** — prevents running assessment before onboarding is done
+- **Latest endpoint returns all 3 regulations** — dashboard can show all regulation scores in one request
+
+### Files Changed
+
+- `services/policy-engine/app/routers/assessments.py` ← new
+- `services/policy-engine/app/main.py`
+
+---
+
+## COM-70 — Comprehensive Tests + ARQ Worker Architecture
+
+**Date:** 2026-06-02
+**Branch:** feat/sprint-2-phase-2-assessment-engine
+
+### What was built
+
+- 134 test cases in `services/policy-engine/tests/test_engine.py`
+- ARQ worker in `services/policy-engine/app/workers/assessment.py`
+- Separate `policy-engine-worker` Docker container
+
+### Test coverage
+
+- Applicability engine — all GDPR, NIS2, EU AI Act rules and edge cases
+- Scorer — all profile_field rules, score calculations, boundary values
+- Remediation generator — priority ordering, fine exposure, evidence needed
+- Edge cases: None values, empty data, role combinations, boundary scores (40/60/80)
+
+### ARQ Worker architecture
+
+- `WorkerSettings` class with `redis_settings` parsed from `REDIS_URL`
+- Warms rule cache on startup — all 258 rules loaded once per worker process
+- Assessment pipeline:
+  - Load assessment row from DB (1 query)
+  - Load rules from cache (0 queries after warmup)
+  - Run applicability engine (pure Python, ~1ms)
+  - Run scorer (pure Python, ~1ms)
+  - Run remediation generator (pure Python, ~1ms)
+  - Bulk insert all gaps (1 query)
+  - Update assessment status + score (1 query)
+  - Total: 4 DB queries per assessment
+- Separate Docker container with `MODE=worker` env var
+- `restart: unless-stopped` — auto-recovers from crashes
+
+### Key Decisions
+
+- **4 DB calls not 258** — load rules once, evaluate in Python, bulk insert. Standard rule engine pattern
+- **In-memory rule cache** — rules almost never change. Loading 258 rows on every assessment is wasteful. Cache warmed on startup, cleared on shutdown
+- **ARQ over FastAPI BackgroundTasks** — BackgroundTasks are lost on server restart. ARQ persists jobs in Redis — survives deploys, crashes, OOM kills
+- **Separate worker container** — API and worker can scale independently. Worker crash doesn't take down API. Clear separation of concerns
+
+### What We Learned
+
+- ARQ `WorkerSettings` must explicitly declare `redis_settings` — without it, ARQ defaults to `localhost:6379` regardless of env vars
+- `.env` Redis URL should use Docker service name (`compliancekit-redis`) not `localhost` — all services run in Docker
+- Rule cache `ROLLBACK` in logs is normal — SQLAlchemy opens a transaction on startup query even for SELECT, rolls back cleanly
+
+### Files Changed
+
+- `services/policy-engine/app/workers/__init__.py` ← new
+- `services/policy-engine/app/workers/assessment.py` ← new
+- `services/policy-engine/tests/test_engine.py` ← new
+- `services/policy-engine/Dockerfile`
+- `infrastructure/docker/docker-compose.yml`
+- `.env`
+- `services/policy-engine/pyproject.toml`
