@@ -1184,3 +1184,442 @@ info present in one payload.
 - **Typed routes error on `<Link href>`** — Next.js typed routes rejects template literal strings; fixed with `as any` cast (consistent with all other `router.push` calls in the codebase)
 
 **Blockers: None**
+
+## COM-157 — Rulebook Tables + pgvector
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Switched PostgreSQL Docker image from `postgres:16` to `pgvector/pgvector:pg16`
+- Added `pgvector>=0.3.0` and `openai>=1.30.0` to `packages/common/pyproject.toml`
+- Created 4 new SQLAlchemy models: `Regulation`, `RegulationVersion`, `Rule`, `RuleVersion`
+- Added nanoid-based public ID generators: `reg_`, `rgv_`, `rul_`, `rlv_`
+- Created Alembic migration `9c6a4fe3c1ce`:
+  - 5 PostgreSQL native enums
+  - 4 tables with proper FK constraints
+  - IVFFlat vector index on `rules.embedding` (cosine similarity, lists=100)
+
+### Key Decisions
+
+- **IVFFlat with lists=100** — optimal for 10k–100k vectors, fast cosine similarity for RAG
+- **`use_alter=True`** for circular FK between `rules` and `rule_versions` — standard SQLAlchemy pattern
+- **Separate public IDs** (`rul_xxx`) from internal UUIDs — external-facing IDs never expose DB internals
+
+### What We Learned
+
+- pgvector requires `pgvector/pgvector:pg16` Docker image — plain `postgres:16` doesn't have the extension
+- Circular FK in Alembic migrations must be handled by creating tables first without the FK, then adding it via `ALTER TABLE` in the same migration
+- After adding a migration file locally, `make rebuild-api` is needed before `make migrate` so the container picks up the new file
+
+### Files Changed
+
+- `infrastructure/docker/docker-compose.yml`
+- `packages/common/pyproject.toml`
+- `packages/common/common/utils/ids.py`
+- `packages/common/common/models/regulation.py` ← new
+- `packages/common/common/models/rule.py` ← new
+- `packages/common/common/models/__init__.py`
+- `packages/common/alembic/versions/9c6a4fe3c1ce_create_rulebook_tables.py` ← new
+
+## COM-188 — Azure OpenAI Client Module
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Added `AIServiceSettings` class to `packages/common/common/config.py` extending `BaseServiceSettings`
+- Created `packages/common/common/ai/client.py` with:
+  - `get_async_client()` — returns `AsyncAzureOpenAI` singleton via `lru_cache(maxsize=1)`
+  - `get_sync_client()` — returns `AzureOpenAI` singleton via `lru_cache(maxsize=1)`
+- Created `packages/common/common/ai/__init__.py`
+- Updated `services/policy-engine/app/config.py` to extend `AIServiceSettings` instead of `BaseServiceSettings`
+
+### Key Decisions
+
+- **Azure OpenAI over plain OpenAI** — EU data residency, DPA available, no data used for model training. Customer personal data never leaves the EU region
+- **`lru_cache(maxsize=1)` singleton pattern** — one client instance per process, avoids connection pool exhaustion
+- **`ai_enabled` property** — services can check `settings.ai_enabled` before making AI calls, gracefully degrading when keys aren't configured
+- **`AIServiceSettings` as a mixin** — only services that need AI extend it, others use plain `BaseServiceSettings`
+
+### Data Privacy Architecture
+
+Only anonymised company characteristics go to Azure OpenAI — never:
+
+- `dpo_name`, `dpo_email`, `legal_contact_email`
+- `tenant_name`, `profile_id`
+- Any personally identifiable information
+
+### What We Learned
+
+- Azure OpenAI uses the same `openai` Python package — just different client class (`AsyncAzureOpenAI`) and endpoint configuration
+- Keys not needed at development time — `ai_enabled` returns `False` gracefully until Azure keys are configured
+
+### Files Changed
+
+- `packages/common/common/config.py`
+- `packages/common/common/ai/__init__.py` ← new
+- `packages/common/common/ai/client.py` ← new
+- `services/policy-engine/app/config.py`
+
+## COM-158 — Seed GDPR (99 Articles)
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Created `packages/common/common/utils/enums.py` with `pg_enum()` utility function
+- Created `packages/common/scripts/seeders/seed_gdpr.py` seeding:
+  - 1 regulation row (`GDPR`)
+  - 1 regulation version row (`2016/679`)
+  - 99 articles across all 11 GDPR chapters
+
+### Articles Coverage
+
+| Chapter | Articles  | Topic                              |
+| ------- | --------- | ---------------------------------- |
+| I       | 1–4       | General provisions & definitions   |
+| II      | 5–11      | Core principles                    |
+| III     | 12–23     | Data subject rights                |
+| IV      | 24–43     | Controller & processor obligations |
+| V       | 44–49, 50 | International transfers            |
+| VI      | 51–59     | Supervisory authorities            |
+| VII     | 60–76     | Cross-border cooperation           |
+| VIII    | 77–84     | Fines & penalties                  |
+| IX      | 85–91     | Special processing situations      |
+| X       | 92–93     | Delegated acts                     |
+| XI      | 94–99     | Final provisions                   |
+
+### Key Decisions
+
+- **`pg_enum()` utility** — wraps SQLAlchemy `Enum` with `values_callable` to always send `.value` (lowercase) not `.name` (uppercase) to PostgreSQL. One function used everywhere — impossible to forget
+- **`str, enum.Enum` mixin** — kept on all enum classes for JSON/API serialization consistency
+- **Idempotent seeder** — checks if GDPR already exists before inserting, safe to re-run anytime
+- **`date()` objects not strings** — asyncpg requires Python `date` objects for `DATE` columns, not string literals
+
+### Bugs Found & Fixed
+
+- `asyncpg` sends enum `.name` (`"ACTIVE"`) not `.value` (`"active"`) by default — fixed with `pg_enum()` utility
+- Date fields must be Python `date(2018, 5, 25)` not string `"2018-05-25"` — asyncpg strict about types
+- Article 50 was initially missed — caught by article count check (98 vs 99), added and reseeded
+
+### What We Learned
+
+- SQLAlchemy native enum serialization with asyncpg uses `.name` by default — requires `values_callable` to use `.value`
+- PostgreSQL convention: enum values lowercase, Python convention: enum names uppercase — `pg_enum()` bridges this gap permanently
+- Always verify seeded count matches expected count before moving on
+
+### Files Changed
+
+- `packages/common/common/utils/enums.py` ← new
+- `packages/common/scripts/__init__.py` ← new
+- `packages/common/scripts/seeders/__init__.py` ← new
+- `packages/common/scripts/seeders/seed_gdpr.py` ← new
+
+## COM-159 — Seed NIS2 (46 Articles)
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Created `packages/common/scripts/seeders/seed_nis2.py` seeding:
+  - 1 regulation row (`NIS2`)
+  - 1 regulation version row (`2022/2555`)
+  - 46 articles across all 8 NIS2 chapters
+
+### Articles Coverage
+
+| Chapter | Articles | Topic                                |
+| ------- | -------- | ------------------------------------ |
+| I       | 1–4      | General provisions & scope           |
+| II      | 5–11     | Coordinated cybersecurity frameworks |
+| III     | 12–25    | Risk management & incident reporting |
+| IV      | 26–28    | Jurisdiction & registration          |
+| V       | 29–30    | Information sharing                  |
+| VI      | 31–38    | Supervisory & enforcement            |
+| VII     | 39–40    | Delegated & implementing acts        |
+| VIII    | 41–46    | Transitional & final provisions      |
+
+### Key Decisions
+
+- **Essential vs Important entity classification** — captured in `nis2_data.entity_type` from onboarding Step 6. Essential entities face proactive supervision; important entities reactive
+- **Art. 21 (10 minimum measures)** — most critical article, `check_type=technical`, covers MFA, encryption, BCP, supply chain, incident response
+- **Art. 23 (incident reporting)** — 3-stage timeline: 24h early warning → 72h notification → 1-month final report. `deadline_hours=24` in `evaluation_logic`
+- **Art. 34 (fines)** — Essential: €10M/2% global turnover; Important: €7M/1.4% global turnover. Management personal liability included
+
+### NIS2 vs GDPR Key Difference
+
+NIS2 is a **Directive** (member states transpose into national law) not a **Regulation** (directly applicable). This means national implementations may vary — flagged in relevant articles.
+
+### What We Learned
+
+- NIS2 has 46 articles — significantly shorter than GDPR because it's a framework directive, not a directly applicable regulation
+- No double fining with GDPR — if a cyber incident is also a GDPR breach, only the higher fine applies (Art. 35)
+- Transposition deadline was 17 October 2024 — NIS2 is now fully in force across EU
+
+### Files Changed
+
+- `packages/common/scripts/seeders/seed_nis2.py` ← new
+
+## COM-160 — Seed EU AI Act (113 Articles)
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Created `packages/common/scripts/seeders/seed_eu_ai_act.py` seeding:
+  - 1 regulation row (`EU_AI_ACT`)
+  - 1 regulation version row (`2024/1689`)
+  - 113 articles across all 11 chapters
+- Created `packages/common/scripts/seeders/seed_all.py` — runs all 3 seeders in order
+- Added Makefile targets: `make seed`, `make seed-gdpr`, `make seed-nis2`, `make seed-euai`
+
+### Articles Coverage
+
+| Chapter | Articles | Topic                                                            |
+| ------- | -------- | ---------------------------------------------------------------- |
+| I       | 1–4      | General provisions, definitions, AI literacy                     |
+| II      | 5        | Prohibited AI practices (8 categories)                           |
+| III     | 6–49     | High-risk AI systems (classification, requirements, obligations) |
+| IV      | 50       | Transparency obligations                                         |
+| V       | 51–56    | General-purpose AI (GPAI) models                                 |
+| VI      | 57–63    | Innovation measures & sandboxes                                  |
+| VII     | 64–70    | Governance                                                       |
+| VIII    | 71       | EU database for high-risk AI                                     |
+| IX      | 72–87    | Post-market monitoring, enforcement, penalties                   |
+| X       | 88–94    | Codes of conduct, AI Board, advisory forum                       |
+| XI      | 95–113   | Final provisions, sector amendments, transitional                |
+
+### Key Decisions
+
+- **Risk-based approach** — 4 tiers: prohibited, high-risk, limited risk, minimal risk. Severity mapped accordingly
+- **Art. 5 (prohibited practices)** — `severity=critical`, 8 banned AI types including social scoring, real-time biometric surveillance, emotion recognition in workplace. Applies from **2 February 2025**
+- **Art. 21 (high-risk requirements)** — 10 minimum measures including risk management, data governance, human oversight, MFA, encryption
+- **Art. 50 (transparency)** — chatbots must disclose they are AI, AI-generated content must be watermarked. Applies from **August 2026**
+- **Art. 79 (fines)** — 3 tiers: €35M/7% for prohibited AI, €15M/3% for high-risk violations, €7.5M/1.5% for misleading authorities
+
+### Phased Application Timeline
+
+| Deadline        | What applies                                |
+| --------------- | ------------------------------------------- |
+| 2 February 2025 | Prohibited AI practices (Art. 5)            |
+| 2 August 2025   | GPAI model obligations (Chapter V)          |
+| 2 August 2026   | High-risk AI obligations (Chapters III, IV) |
+| 2 August 2027   | Legacy AI systems must be compliant         |
+
+### Provider vs Deployer
+
+Critical distinction captured in `ai_act_data.role`:
+
+- **Provider** — builds/sells AI. Responsible for conformity assessment, CE marking, technical docs, EU database registration
+- **Deployer** — uses AI in products/services. Responsible for human oversight, logs, incident reporting, fundamental rights impact assessment
+
+### What We Learned
+
+- EU AI Act is the world's first comprehensive AI regulation — risk-based, not technology-specific
+- GPAI systemic risk threshold: 10^25 FLOPs training compute — currently applies to frontier models like GPT-4 class systems
+- Highest fine in any EU tech regulation: €35M or 7% global turnover for prohibited AI — higher than GDPR Tier 2
+
+### Files Changed
+
+- `packages/common/scripts/seeders/seed_eu_ai_act.py` ← new
+- `packages/common/scripts/seeders/seed_all.py` ← new
+- `Makefile`
+
+## COM-161 — Regulations API Endpoints
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Created `services/policy-engine/app/routers/__init__.py`
+- Created `services/policy-engine/app/routers/regulations.py` with 2 endpoints:
+  - `GET /api/v1/regulations` — list all regulations
+  - `GET /api/v1/regulations/{name}/rules` — get rules for a regulation with filters
+- Updated `services/policy-engine/app/main.py` to include the router
+- Created `services/policy-engine/tests/__init__.py`
+- Created `services/policy-engine/tests/conftest.py`
+- Created `services/policy-engine/tests/test_regulations.py` — 34 test cases
+
+### Endpoints
+
+**GET /api/v1/regulations**
+Returns all regulations with name, full_name, jurisdiction, authority, status, effective_date, source_url.
+
+**GET /api/v1/regulations/{name}/rules**
+
+- Path param: regulation name (case insensitive — `gdpr`, `GDPR`, `Gdpr` all work)
+- Query params: `?category=`, `?severity=`, `?check_type=` (all case insensitive)
+- Returns: regulation name, total count, full rules array
+- Filters: all values lowercased before querying — `?severity=CRITICAL` works same as `?severity=critical`
+
+### Test Coverage (34 cases)
+
+| Category                    | Count |
+| --------------------------- | ----- |
+| List regulations happy path | 4     |
+| HTTP method enforcement     | 4     |
+| Rules happy path            | 3     |
+| Case insensitivity (name)   | 4     |
+| Not found / edge cases      | 6     |
+| Filter behaviour            | 8     |
+| Inactive rules              | 1     |
+| Empty results               | 1     |
+| Health check unaffected     | 1     |
+| Method not allowed          | 2     |
+
+### Bugs Found & Fixed
+
+- `HTTPException` imported inside function body — moved to top-level import
+- Filter values were case-sensitive — `?severity=CRITICAL` returned empty list. Fixed by calling `.lower()` on all filter values before querying
+
+### Key Decisions
+
+- **No auth on regulations endpoints** — regulations are system-level reference data, not tenant data. No RLS needed, uses admin session
+- **Case-insensitive name lookup** — `.upper()` on path param so `gdpr`/`GDPR`/`Gdpr` all resolve correctly
+- **Case-insensitive filters** — `.lower()` on all query params before querying DB
+- **404 vs empty list** — unknown regulation = 404; known regulation with no matching rules = 200 empty list
+- **Unsupported filters silently ignored** — `?is_mandatory=true` ignored, returns all rules (by design)
+
+### What We Learned
+
+- SQL injection via SQLAlchemy ORM is architecturally impossible — parameterized queries always used. Test for endpoint behaviour (404), not library internals
+- FastAPI returns 405 automatically for undefined HTTP methods — no extra code needed
+- Empty string query params (`?severity=`) are falsy in Python — treated as no filter
+
+### Files Changed
+
+- `services/policy-engine/app/main.py`
+- `services/policy-engine/app/routers/__init__.py` ← new
+- `services/policy-engine/app/routers/regulations.py` ← new
+- `services/policy-engine/tests/__init__.py` ← new
+- `services/policy-engine/tests/conftest.py` ← new
+- `services/policy-engine/tests/test_regulations.py` ← new
+
+## BONUS — Step 6 Onboarding (GDPR / NIS2 / EU AI Act Data Collection)
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Created `frontend/src/app/(onboarding)/_components/Step6Form.tsx`
+- Updated `frontend/src/app/(onboarding)/_components/StepSidebar.tsx` — added Step 6
+- Updated `frontend/src/app/(onboarding)/onboarding/step/[step]/page.tsx` — `TOTAL_STEPS` 5→6, added Step6Form
+- Updated `frontend/src/app/(onboarding)/_components/Step5Form.tsx` — removed `is_complete: true`, changed "Finish" to "Continue →"
+- Updated `frontend/src/lib/validateOnboarding.ts` — added Step 6 validation
+
+### Step 6 Sections
+
+**GDPR Section**
+
+- Lawful bases (multi-select: consent, contract, legal obligation, vital interests, public task, legitimate interests)
+- Processes children's data (yes/no)
+- Transfers outside EEA (yes/no)
+- Transfer mechanisms (multi-select: SCCs, adequacy decision, BCRs, derogations)
+- Uses data processors (yes/no)
+- Has breach notification procedure (yes/no)
+- Has DPIA process (yes/no)
+
+**NIS2 Section** (conditional — only shown if NIS2 sectors selected)
+
+- NIS2 sectors (multi-select: energy, transport, banking, health, digital infrastructure, etc.)
+- Entity type (essential / important)
+- Uses MFA (yes/no)
+- Has incident response plan (yes/no)
+- Has business continuity plan (yes/no)
+- Supply chain security policy (yes/no)
+
+**EU AI Act Section**
+
+- Uses AI (yes/no)
+- Role (provider / deployer / both)
+- High-risk AI categories (multi-select: biometric, employment, education, law enforcement, etc.)
+- Develops GPAI models (yes/no)
+- Has AI governance policy (yes/no)
+
+### Key Decisions
+
+- **Saves to JSONB columns** — `gdpr_data`, `nis2_data`, `ai_act_data` on the profile
+- **`is_complete: true` moved to Step 6** — onboarding only complete after all 6 steps
+- **NIS2 section conditional** — only shown if organisation operates in NIS2-covered sectors
+- **Step 6 is the final step** — submitting sets `is_complete: true` and redirects to dashboard
+
+### Patterns Followed (matching Steps 1-5)
+
+- `type FormData = z.infer<typeof schema>` — no renaming
+- No `.default()` in Zod schema — uses `.optional()` with `defaultValues`
+- `watch("field") ?? []` — for optional array fields
+- `renderYesNo()` returns just buttons div — caller wraps in `FormField`
+- Dedicated toggle handlers — no generic `toggleMulti`
+- No `SubmitHandler` import
+
+### What We Learned
+
+- Never use `.default([])` in Zod schema with react-hook-form — causes Resolver type mismatch
+- `SubmitHandler` generic type causes TypeScript errors — use `type FormData` pattern consistently
+- Stick to established patterns across all step forms — deviating causes hard-to-debug TypeScript errors
+
+### Files Changed
+
+- `frontend/src/app/(onboarding)/_components/Step6Form.tsx` ← new
+- `frontend/src/app/(onboarding)/_components/Step5Form.tsx`
+- `frontend/src/app/(onboarding)/_components/StepSidebar.tsx`
+- `frontend/src/app/(onboarding)/onboarding/step/[step]/page.tsx`
+- `frontend/src/lib/validateOnboarding.ts`
+
+## BONUS — Schema Improvements (fine_tier, is_mandatory, check_type)
+
+**Date:** 2026-05-30
+**Branch:** feat/sprint-2-phase-1-rulebook-foundation
+
+### What was built
+
+- Added 3 new columns to `rules` table:
+  - `fine_tier` — `VARCHAR(10)`, nullable, indexed (`"tier_1"`, `"tier_2"`, `None`)
+  - `is_mandatory` — `BOOLEAN`, not null, default `true`
+  - `check_type` — `VARCHAR(30)`, not null, default `"informational"`, indexed
+- Added 2 new columns to `rule_versions` table:
+  - `fine_tier` — nullable (historical snapshots may not have it)
+  - `is_mandatory` — nullable (same reason)
+- Migration `0cdd1cbf1525` — adds all 5 columns, recreates all indexes correctly
+
+### Why These Columns
+
+| Column         | Why a column (not JSONB)                                                          |
+| -------------- | --------------------------------------------------------------------------------- |
+| `fine_tier`    | Queried directly for risk scoring: `WHERE fine_tier = 'tier_2'`                   |
+| `is_mandatory` | Filtered for mandatory vs optional rules: `WHERE is_mandatory = true`             |
+| `check_type`   | Assessment engine picks evaluation strategy: `WHERE check_type = 'profile_field'` |
+
+### check_type Values
+
+| Value               | Meaning                                |
+| ------------------- | -------------------------------------- |
+| `profile_field`     | Evaluated from onboarding profile data |
+| `document_required` | Needs a document uploaded              |
+| `policy_required`   | Needs a written policy                 |
+| `technical`         | Needs a technical control verified     |
+| `informational`     | Awareness only, no active check        |
+
+### Migration Fix Applied
+
+Autogenerated migration dropped `rules_embedding_idx` (IVFFlat) and `rules_tags_idx` (GIN) without recreating them. Manually added back:
+
+```python
+op.create_index('ix_rules_embedding', 'rules', ['embedding'],
+    postgresql_using='ivfflat',
+    postgresql_ops={'embedding': 'vector_cosine_ops'},
+    postgresql_with={'lists': '100'})
+op.create_index('ix_rules_applicability_tags', 'rules',
+    ['applicability_tags'], postgresql_using='gin')
+
+
+
+```
