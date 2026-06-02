@@ -39,6 +39,12 @@ def _redis_settings() -> RedisSettings:
 class RunAssessmentRequest(BaseModel):
     regulation_name: str  # GDPR | NIS2 | EU_AI_ACT
 
+class UpdateGapRequest(BaseModel):
+    resolved: bool | None = None
+    notes: str | None = None
+    assigned_to: str | None = None
+    due_date: str | None = None  # ISO date string "2026-08-01"
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +57,7 @@ async def run_assessment(
     """
     Trigger a new compliance assessment for the tenant.
     Returns 202 immediately — poll GET /assessments/{id} for status.
+    If assessment already running or ran < 1 hour ago, returns existing assessment.
     """
     regulation_name = body.regulation_name.upper()
 
@@ -73,7 +80,45 @@ async def run_assessment(
     if not profile.is_complete:
         raise HTTPException(status_code=422, detail="Please complete onboarding before running an assessment.")
 
-    # Load latest regulation version
+    # ── Cooldown check — return existing if already running ───────────────────
+    cooldown_result = await session.execute(
+        select(Assessment)
+        .where(
+            Assessment.tenant_id == claims.tenant_id,
+            Assessment.regulation_id == regulation.id,
+            Assessment.status.in_([AssessmentStatus.PENDING, AssessmentStatus.RUNNING]),
+        )
+        .limit(1)
+    )
+    running = cooldown_result.scalar_one_or_none()
+    if running:
+        return {
+            "assessment_id": running.assessment_id,
+            "status": running.status,
+            "regulation": regulation_name,
+            "message": "Assessment already in progress.",
+        }
+
+    recent_result = await session.execute(
+        select(Assessment)
+        .where(
+            Assessment.tenant_id == claims.tenant_id,
+            Assessment.regulation_id == regulation.id,
+            Assessment.status == AssessmentStatus.COMPLETED,
+            Assessment.completed_at >= datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        .limit(1)
+    )
+    recent = recent_result.scalar_one_or_none()
+    if recent:
+        return {
+            "assessment_id": recent.assessment_id,
+            "status": recent.status,
+            "regulation": regulation_name,
+            "message": "Assessment ran less than 1 hour ago. Returning existing result.",
+        }
+
+    # ── Load latest regulation version ────────────────────────────────────────
     from common.models.regulation import RegulationVersion
     version_result = await session.execute(
         select(RegulationVersion)
@@ -83,7 +128,7 @@ async def run_assessment(
     )
     version = version_result.scalar_one_or_none()
 
-    # Find previous assessment for score tracking
+    # ── Find previous assessment for score tracking ───────────────────────────
     prev_result = await session.execute(
         select(Assessment)
         .where(
@@ -96,7 +141,7 @@ async def run_assessment(
     )
     previous = prev_result.scalar_one_or_none()
 
-    # Snapshot the profile at assessment time
+    # ── Snapshot the profile at assessment time ───────────────────────────────
     profile_snapshot = {
         "b2b_or_b2c": profile.b2b_or_b2c,
         "data_role": profile.data_role,
@@ -120,7 +165,7 @@ async def run_assessment(
         "ai_act_data": profile.ai_act_data,
     }
 
-    # Create assessment row (status=pending)
+    # ── Create assessment row (status=pending) ────────────────────────────────
     assessment = Assessment(
         tenant_id=claims.tenant_id,
         regulation_id=regulation.id,
@@ -136,7 +181,7 @@ async def run_assessment(
     await session.commit()
     await session.refresh(assessment)
 
-    # Queue ARQ job
+    # ── Queue ARQ job ─────────────────────────────────────────────────────────
     redis = await create_pool(_redis_settings())
     await redis.enqueue_job("run_assessment", assessment.assessment_id)
     await redis.aclose()
@@ -147,7 +192,6 @@ async def run_assessment(
         "regulation": regulation_name,
         "message": "Assessment queued. Poll GET /api/v1/assessments/{id} for status.",
     }
-
 
 @router.get("/latest")
 async def get_latest_assessments(
@@ -191,6 +235,56 @@ async def get_latest_assessments(
         })
 
     return {"assessments": results}
+
+
+@router.get("/history")
+async def get_assessment_history(
+    regulation: str | None = Query(None),
+    limit: int = Query(10, le=50),
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    """
+    Score history for trend chart.
+    Returns last N completed assessments per regulation.
+    """
+    query = (
+        select(Assessment)
+        .where(
+            Assessment.tenant_id == claims.tenant_id,
+            Assessment.status == AssessmentStatus.COMPLETED,
+        )
+        .order_by(desc(Assessment.completed_at))
+        .limit(limit)
+    )
+
+    if regulation:
+        reg_result = await session.execute(
+            select(Regulation).where(Regulation.name == regulation.upper())
+        )
+        reg = reg_result.scalar_one_or_none()
+        if not reg:
+            return {"history": []} 
+        query = query.where(Assessment.regulation_id == reg.id)
+
+    result = await session.execute(query)
+    assessments = result.scalars().all()
+
+    return {
+        "history": [
+            {
+                "assessment_id": a.assessment_id,
+                "regulation_id": str(a.regulation_id),
+                "score": a.score,
+                "risk_level": a.risk_level,
+                "met_rules": a.met_rules,
+                "not_met_rules": a.not_met_rules,
+                "unknown_rules": a.unknown_rules,
+                "completed_at": a.completed_at,
+            }
+            for a in assessments
+        ]
+    }
 
 
 @router.get("/{assessment_id}")
@@ -310,3 +404,156 @@ async def get_gaps(
             for g in gaps
         ],
     }
+
+
+@router.patch("/{assessment_id}/gaps/{gap_id}")
+async def update_gap(
+    assessment_id: str,
+    gap_id: str,
+    body: UpdateGapRequest,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    """
+    Update a gap — resolve/unresolve, add notes, assign to user, set due date.
+    """
+    # Verify assessment belongs to tenant
+    assessment_result = await session.execute(
+        select(Assessment).where(
+            Assessment.assessment_id == assessment_id,
+            Assessment.tenant_id == claims.tenant_id,
+        )
+    )
+    assessment = assessment_result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Get the gap
+    gap_result = await session.execute(
+        select(Gap).where(
+            Gap.gap_id == gap_id,
+            Gap.assessment_id == assessment.id,
+        )
+    )
+    gap = gap_result.scalar_one_or_none()
+    if not gap:
+        raise HTTPException(status_code=404, detail="Gap not found")
+
+    # Apply updates
+    if body.resolved is not None:
+        gap.resolved = body.resolved
+        if body.resolved:
+            gap.resolved_at = datetime.now(timezone.utc)
+            gap.resolved_by = claims.user_id
+        else:
+            gap.resolved_at = None
+            gap.resolved_by = None
+
+    if body.notes is not None:
+        gap.notes = body.notes
+
+    if body.assigned_to is not None:
+        gap.assigned_to = body.assigned_to
+
+    if body.due_date is not None:
+        from datetime import date
+        gap.due_date = date.fromisoformat(body.due_date)
+
+    await session.commit()
+    await session.refresh(gap)
+
+    return {
+        "gap_id": gap.gap_id,
+        "resolved": gap.resolved,
+        "resolved_at": gap.resolved_at,
+        "resolved_by": gap.resolved_by,
+        "notes": gap.notes,
+        "assigned_to": gap.assigned_to,
+        "due_date": gap.due_date,
+    }
+
+@router.get("/{assessment_id}/stats")
+async def get_assessment_stats(
+    assessment_id: str,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    """
+    Gap statistics grouped by category, severity, and chapter.
+    Used for gap list header and risk heat map.
+    """
+    from sqlalchemy import func
+
+    # Verify ownership
+    assessment_result = await session.execute(
+        select(Assessment).where(
+            Assessment.assessment_id == assessment_id,
+            Assessment.tenant_id == claims.tenant_id,
+        )
+    )
+    assessment = assessment_result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # By severity
+    severity_result = await session.execute(
+        select(Gap.severity, Gap.status, func.count(Gap.id))
+        .where(
+            Gap.assessment_id == assessment.id,
+            Gap.status != "not_applicable",
+        )
+        .group_by(Gap.severity, Gap.status)
+    )
+    by_severity = {}
+    for severity, status, count in severity_result:
+        if severity not in by_severity:
+            by_severity[severity] = {}
+        by_severity[severity][status] = count
+
+    # By category
+    category_result = await session.execute(
+        select(Gap.category, func.count(Gap.id))
+        .where(
+            Gap.assessment_id == assessment.id,
+            Gap.status.in_(["not_met", "unknown"]),
+        )
+        .group_by(Gap.category)
+        .order_by(func.count(Gap.id).desc())
+        .limit(10)
+    )
+    by_category = [
+        {"category": cat, "gaps": count}
+        for cat, count in category_result
+    ]
+
+    # Quick wins — low effort, high impact
+    # low/medium severity not_met rules that are mandatory
+    quick_wins_result = await session.execute(
+        select(Gap)
+        .where(
+            Gap.assessment_id == assessment.id,
+            Gap.status == "not_met",
+            Gap.severity.in_(["medium", "low"]),
+            Gap.resolved.is_(False),
+        )
+        .order_by(Gap.article_number)
+        .limit(5)
+    )
+    quick_wins = quick_wins_result.scalars().all()
+
+    return {
+        "assessment_id": assessment_id,
+        "by_severity": by_severity,
+        "by_category": by_category,
+        "quick_wins": [
+            {
+                "gap_id": g.gap_id,
+                "article": g.article,
+                "category": g.category,
+                "severity": g.severity,
+                "remediation_hint": None,
+            }
+            for g in quick_wins
+        ],
+    }
+
