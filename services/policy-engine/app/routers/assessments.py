@@ -385,7 +385,8 @@ async def get_gaps(
                 "gap_id": g.gap_id,
                 "article": g.article,
                 "article_number": g.article_number,
-                "title": None,  # fetched from rule if needed
+                "title": g.title,
+                "remediation_hint": g.remediation_hint,
                 "chapter": g.chapter,
                 "category": g.category,
                 "severity": g.severity,
@@ -393,7 +394,6 @@ async def get_gaps(
                 "status": g.status,
                 "score": g.score,
                 "remediation_priority": g.remediation_priority,
-                "remediation_hint": None,  # from rule
                 "remediation_steps": g.remediation_steps,
                 "evidence": g.evidence,
                 "assigned_to": g.assigned_to,
@@ -551,7 +551,7 @@ async def get_assessment_stats(
                 "article": g.article,
                 "category": g.category,
                 "severity": g.severity,
-                "remediation_hint": None,
+                "remediation_hint": g.remediation_hint,
             }
             for g in quick_wins
         ],
