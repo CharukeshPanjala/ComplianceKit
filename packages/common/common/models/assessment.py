@@ -126,6 +126,9 @@ class Gap(Base):
     category: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     severity: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     fine_tier: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)      
+    plain_english: Mapped[str | None] = mapped_column(Text, nullable=True)    
+    remediation_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Assessment results
     status: Mapped[GapStatus] = mapped_column(
         pg_enum(GapStatus), nullable=False, default=GapStatus.UNKNOWN, index=True
