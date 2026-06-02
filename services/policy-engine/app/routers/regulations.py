@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from common.models.regulation import Regulation
@@ -43,7 +43,7 @@ async def list_rules(
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail=f"Regulation '{regulation_name}' not found")
 
-    query = select(Rule).where(Rule.regulation_id == regulation.id, Rule.is_active == True)
+    query = select(Rule).where(Rule.regulation_id == regulation.id, Rule.is_active.is_(True))
 
     if category:
         query = query.where(Rule.category == category.lower())
