@@ -2,12 +2,11 @@
 COM-70 — Comprehensive tests for the assessment engine.
 Covers applicability, scoring, and remediation including all edge cases.
 """
-import pytest
 from unittest.mock import MagicMock
 from common.models.rule import Rule, Severity
 from app.engine.applicability import ApplicabilityEngine, ApplicabilityResult
-from app.engine.scorer import Scorer, ScoringResult, SEVERITY_WEIGHTS
-from app.engine.remediation import RemediationGenerator, PRIORITY_ORDER
+from app.engine.scorer import Scorer, ScoringResult
+from app.engine.remediation import RemediationGenerator
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

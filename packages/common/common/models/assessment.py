@@ -4,7 +4,7 @@ from datetime import datetime, date
 
 from sqlalchemy import (
     String, Text, DateTime, ForeignKey, Boolean,
-    Integer, Date, func, Enum
+    Integer, Date, func
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column

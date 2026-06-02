@@ -139,7 +139,6 @@ class Scorer:
     def _score_profile_field(self, rule: Rule) -> ScoringResult:
         """Evaluate rules that can be fully assessed from profile data."""
         n = rule.article_number
-        reg = rule.regulation_name if hasattr(rule, 'regulation_name') else ""
 
         # ── GDPR profile_field rules ──────────────────────────────────────────
 

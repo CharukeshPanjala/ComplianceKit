@@ -11,18 +11,17 @@ Pipeline:
   6. Bulk save gaps to DB
   7. Update assessment status + score
 """
-import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.db.session import AdminSessionLocal
-from common.models.regulation import Regulation, RegulationVersion
+from common.models.regulation import Regulation
 from common.models.rule import Rule
 from common.models.assessment import Assessment, Gap, AssessmentStatus, RiskLevel, GapStatus, RemediationPriority
 from app.engine.applicability import ApplicabilityEngine
-from app.engine.scorer import Scorer, SEVERITY_WEIGHTS
+from app.engine.scorer import Scorer
 from app.engine.remediation import RemediationGenerator
 from app.config import settings as app_settings
 from arq.connections import RedisSettings as ArqRedisSettings
