@@ -92,8 +92,9 @@ db:
 
 # ── Tests ─────────────────────────────────────────────────
 test:
-	uv run pytest services/api-gateway/tests/ -v
 	uv run pytest packages/common/tests/ -v
+	uv run pytest services/api-gateway/tests/ -v
+	uv run pytest services/policy-engine/tests/ -v
 
 test-api:
 	uv run pytest services/api-gateway/tests/ -v
