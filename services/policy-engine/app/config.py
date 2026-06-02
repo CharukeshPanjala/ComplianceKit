@@ -1,6 +1,7 @@
-from common.config import BaseServiceSettings
+from common.config import AIServiceSettings
 
-class PolicySettings(BaseServiceSettings):
-    pass
+class PolicySettings(AIServiceSettings):
+    internal_api_key: str = ""
+    cors_origins: list[str] = ["http://localhost:3000"]
 
 settings = PolicySettings()

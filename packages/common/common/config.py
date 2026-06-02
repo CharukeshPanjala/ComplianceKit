@@ -13,16 +13,7 @@ class BaseServiceSettings(BaseSettings):
     )
 
     database_url: str
-
     app_user_database_url: str = ""
-
-    @field_validator("app_user_database_url", mode="before")
-    @classmethod
-    def fix_app_user_database_url(cls, v: str) -> str:
-        if v.startswith("postgresql://"):
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
-        return v
-    
     redis_url: str = "redis://localhost:6379/0"
     environment: str = "development"
     debug: bool = False
@@ -30,7 +21,13 @@ class BaseServiceSettings(BaseSettings):
     @field_validator("database_url", mode="before")
     @classmethod
     def fix_database_url(cls, v: str) -> str:
-        """Railway provides postgresql:// but SQLAlchemy async needs postgresql+asyncpg://"""
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
+    @field_validator("app_user_database_url", mode="before")
+    @classmethod
+    def fix_app_user_database_url(cls, v: str) -> str:
         if v.startswith("postgresql://"):
             return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
@@ -38,3 +35,17 @@ class BaseServiceSettings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+
+class AIServiceSettings(BaseServiceSettings):
+    """Extended settings for services that use Azure OpenAI."""
+
+    azure_openai_endpoint: str = ""
+    azure_openai_api_key: str = ""
+    azure_openai_api_version: str = "2024-10-21"
+    azure_openai_deployment_gpt4o: str = "gpt-4o"
+    azure_openai_deployment_embeddings: str = "text-embedding-3-small"
+
+    @property
+    def ai_enabled(self) -> bool:
+        return bool(self.azure_openai_endpoint and self.azure_openai_api_key)
