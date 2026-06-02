@@ -215,7 +215,6 @@ async def get_latest_assessments(
             .where(
                 Assessment.tenant_id == claims.tenant_id,
                 Assessment.regulation_id == regulation.id,
-                Assessment.status == AssessmentStatus.COMPLETED,
             )
             .order_by(desc(Assessment.created_at))
             .limit(1)

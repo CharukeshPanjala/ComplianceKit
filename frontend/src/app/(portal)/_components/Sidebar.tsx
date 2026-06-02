@@ -34,6 +34,7 @@ const NAV_ITEMS = [
         />
       </svg>
     ),
+    comingSoon: true,
   },
   {
     href: "/ropa",
@@ -121,6 +122,8 @@ const styles = {
   signOut:
     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 hover:text-white transition-colors w-full",
   signOutIcon: "w-5 h-5",
+  backLink: "mt-3 block text-xs text-blue-300 hover:text-white transition-colors",
+  footerText: "text-xs text-blue-200/60 leading-relaxed",
 };
 
 // ── Sub-components ────────────────────────────────────────
@@ -192,6 +195,10 @@ export const Sidebar = () => {
         <SignOutIcon />
         Sign out
       </button>
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <a href={"/dashboard" as any} className={styles.backLink}>
+        ← Back to Dashboard
+      </a>
     </div>
   );
 

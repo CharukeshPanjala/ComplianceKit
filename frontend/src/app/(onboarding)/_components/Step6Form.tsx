@@ -613,6 +613,13 @@ export default function Step6Form({ initialData }: Props) {
         throw new Error(body?.detail ?? "Failed to save. Please try again.");
       }
 
+      // If profile was already complete — just go back to dashboard
+      if (initialData?.is_complete) {
+        router.push("/dashboard" as any);
+        return;
+      }
+
+      // First time completing — validate all steps
       const profileRes = await clientApiFetch("/api/v1/profile", token!, { method: "GET" });
       const profile = profileRes.ok ? await profileRes.json() : null;
       const incompleteStep = getFirstIncompleteStep(profile);
@@ -628,7 +635,8 @@ export default function Step6Form({ initialData }: Props) {
         return;
       }
 
-      router.push("/dashboard");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      router.push("/dashboard" as any);
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Something went wrong.");
     }
