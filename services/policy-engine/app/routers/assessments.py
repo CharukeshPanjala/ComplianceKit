@@ -1,0 +1,312 @@
+"""
+COM-166 — Assessments API
+
+POST /api/v1/assessments          → trigger new assessment (returns 202 immediately)
+GET  /api/v1/assessments/latest   → latest assessment per regulation for the tenant
+GET  /api/v1/assessments/{id}     → get specific assessment status + score
+GET  /api/v1/assessments/{id}/gaps → get gaps for a specific assessment
+"""
+from datetime import datetime, timezone, timedelta
+
+from arq import create_pool
+from arq.connections import RedisSettings
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from common.auth.clerk import verify_token, TokenClaims
+from common.db.session import get_admin_session
+from common.models.assessment import Assessment, Gap, AssessmentStatus
+from common.models.regulation import Regulation
+from common.models.company_profile import CompanyProfile
+from app.config import settings
+
+router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
+
+
+# ── Redis connection ──────────────────────────────────────────────────────────
+
+def _redis_settings() -> RedisSettings:
+    url = settings.redis_url.replace("redis://", "")
+    host, port_db = url.split(":")
+    port, db = port_db.split("/") if "/" in port_db else (port_db, "0")
+    return RedisSettings(host=host, port=int(port), database=int(db))
+
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
+
+class RunAssessmentRequest(BaseModel):
+    regulation_name: str  # GDPR | NIS2 | EU_AI_ACT
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post("", status_code=202)
+async def run_assessment(
+    body: RunAssessmentRequest,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    """
+    Trigger a new compliance assessment for the tenant.
+    Returns 202 immediately — poll GET /assessments/{id} for status.
+    """
+    regulation_name = body.regulation_name.upper()
+
+    # Validate regulation exists
+    reg_result = await session.execute(
+        select(Regulation).where(Regulation.name == regulation_name)
+    )
+    regulation = reg_result.scalar_one_or_none()
+    if not regulation:
+        raise HTTPException(status_code=404, detail=f"Regulation '{regulation_name}' not found")
+
+    # Load tenant profile
+    profile_result = await session.execute(
+        select(CompanyProfile).where(CompanyProfile.tenant_id == claims.tenant_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Company profile not found. Complete onboarding first.")
+
+    if not profile.is_complete:
+        raise HTTPException(status_code=422, detail="Please complete onboarding before running an assessment.")
+
+    # Load latest regulation version
+    from common.models.regulation import RegulationVersion
+    version_result = await session.execute(
+        select(RegulationVersion)
+        .where(RegulationVersion.regulation_id == regulation.id)
+        .order_by(desc(RegulationVersion.created_at))
+        .limit(1)
+    )
+    version = version_result.scalar_one_or_none()
+
+    # Find previous assessment for score tracking
+    prev_result = await session.execute(
+        select(Assessment)
+        .where(
+            Assessment.tenant_id == claims.tenant_id,
+            Assessment.regulation_id == regulation.id,
+            Assessment.status == AssessmentStatus.COMPLETED,
+        )
+        .order_by(desc(Assessment.created_at))
+        .limit(1)
+    )
+    previous = prev_result.scalar_one_or_none()
+
+    # Snapshot the profile at assessment time
+    profile_snapshot = {
+        "b2b_or_b2c": profile.b2b_or_b2c,
+        "data_role": profile.data_role,
+        "industry": profile.industry,
+        "company_size": profile.company_size,
+        "primary_jurisdiction": profile.primary_jurisdiction,
+        "number_of_data_subjects": profile.number_of_data_subjects,
+        "data_categories_processed": profile.data_categories_processed,
+        "processing_purposes": profile.processing_purposes,
+        "data_subject_categories": profile.data_subject_categories,
+        "uses_cloud_services": profile.uses_cloud_services,
+        "cloud_providers": profile.cloud_providers,
+        "has_on_premise_servers": profile.has_on_premise_servers,
+        "has_compliance_officer": profile.has_compliance_officer,
+        "dpo_name": profile.dpo_name,
+        "dpo_email": profile.dpo_email,
+        "certifications": profile.certifications,
+        "previous_regulatory_action": profile.previous_regulatory_action,
+        "gdpr_data": profile.gdpr_data,
+        "nis2_data": profile.nis2_data,
+        "ai_act_data": profile.ai_act_data,
+    }
+
+    # Create assessment row (status=pending)
+    assessment = Assessment(
+        tenant_id=claims.tenant_id,
+        regulation_id=regulation.id,
+        regulation_version_id=version.id if version else None,
+        previous_assessment_id=previous.id if previous else None,
+        status=AssessmentStatus.PENDING,
+        triggered_by=claims.user_id,
+        profile_snapshot=profile_snapshot,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=90),
+    )
+    session.add(assessment)
+    await session.flush()
+    await session.commit()
+    await session.refresh(assessment)
+
+    # Queue ARQ job
+    redis = await create_pool(_redis_settings())
+    await redis.enqueue_job("run_assessment", assessment.assessment_id)
+    await redis.aclose()
+
+    return {
+        "assessment_id": assessment.assessment_id,
+        "status": assessment.status,
+        "regulation": regulation_name,
+        "message": "Assessment queued. Poll GET /api/v1/assessments/{id} for status.",
+    }
+
+
+@router.get("/latest")
+async def get_latest_assessments(
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    """Get the latest completed assessment for each regulation."""
+    regulations = ["GDPR", "NIS2", "EU_AI_ACT"]
+    results = []
+
+    for reg_name in regulations:
+        reg_result = await session.execute(
+            select(Regulation).where(Regulation.name == reg_name)
+        )
+        regulation = reg_result.scalar_one_or_none()
+        if not regulation:
+            continue
+
+        assessment_result = await session.execute(
+            select(Assessment)
+            .where(
+                Assessment.tenant_id == claims.tenant_id,
+                Assessment.regulation_id == regulation.id,
+                Assessment.status == AssessmentStatus.COMPLETED,
+            )
+            .order_by(desc(Assessment.created_at))
+            .limit(1)
+        )
+        assessment = assessment_result.scalar_one_or_none()
+
+        results.append({
+            "regulation": reg_name,
+            "assessment_id": assessment.assessment_id if assessment else None,
+            "score": assessment.score if assessment else None,
+            "risk_level": assessment.risk_level if assessment else None,
+            "met_rules": assessment.met_rules if assessment else None,
+            "not_met_rules": assessment.not_met_rules if assessment else None,
+            "unknown_rules": assessment.unknown_rules if assessment else None,
+            "completed_at": assessment.completed_at if assessment else None,
+            "status": assessment.status if assessment else "never_run",
+        })
+
+    return {"assessments": results}
+
+
+@router.get("/{assessment_id}")
+async def get_assessment(
+    assessment_id: str,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    """Get assessment status and score."""
+    result = await session.execute(
+        select(Assessment)
+        .where(
+            Assessment.assessment_id == assessment_id,
+            Assessment.tenant_id == claims.tenant_id,
+        )
+    )
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    return {
+        "assessment_id": assessment.assessment_id,
+        "status": assessment.status,
+        "score": assessment.score,
+        "risk_level": assessment.risk_level,
+        "total_rules": assessment.total_rules,
+        "applicable_rules": assessment.applicable_rules,
+        "met_rules": assessment.met_rules,
+        "partial_rules": assessment.partial_rules,
+        "not_met_rules": assessment.not_met_rules,
+        "unknown_rules": assessment.unknown_rules,
+        "triggered_by": assessment.triggered_by,
+        "completed_at": assessment.completed_at,
+        "created_at": assessment.created_at,
+    }
+
+
+@router.get("/{assessment_id}/gaps")
+async def get_gaps(
+    assessment_id: str,
+    status: str | None = Query(None),
+    severity: str | None = Query(None),
+    category: str | None = Query(None),
+    remediation_priority: str | None = Query(None),
+    resolved: bool | None = Query(None),
+    limit: int = Query(100, le=500),
+    offset: int = Query(0),
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    """
+    Get gaps for an assessment with filtering.
+    Excludes not_applicable gaps by default — those aren't actionable.
+    """
+    # Verify assessment belongs to tenant
+    assessment_result = await session.execute(
+        select(Assessment)
+        .where(
+            Assessment.assessment_id == assessment_id,
+            Assessment.tenant_id == claims.tenant_id,
+        )
+    )
+    assessment = assessment_result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Build query
+    query = (
+        select(Gap)
+        .where(
+            Gap.assessment_id == assessment.id,
+            Gap.status != "not_applicable",  # exclude non-applicable gaps
+        )
+        .order_by(Gap.article_number)
+    )
+
+    if status:
+        query = query.where(Gap.status == status.lower())
+    if severity:
+        query = query.where(Gap.severity == severity.lower())
+    if category:
+        query = query.where(Gap.category == category.lower())
+    if remediation_priority:
+        query = query.where(Gap.remediation_priority == remediation_priority.lower())
+    if resolved is not None:
+        query = query.where(Gap.resolved == resolved)
+
+    query = query.offset(offset).limit(limit)
+
+    result = await session.execute(query)
+    gaps = result.scalars().all()
+
+    return {
+        "assessment_id": assessment_id,
+        "total": len(gaps),
+        "gaps": [
+            {
+                "gap_id": g.gap_id,
+                "article": g.article,
+                "article_number": g.article_number,
+                "title": None,  # fetched from rule if needed
+                "chapter": g.chapter,
+                "category": g.category,
+                "severity": g.severity,
+                "fine_tier": g.fine_tier,
+                "status": g.status,
+                "score": g.score,
+                "remediation_priority": g.remediation_priority,
+                "remediation_hint": None,  # from rule
+                "remediation_steps": g.remediation_steps,
+                "evidence": g.evidence,
+                "assigned_to": g.assigned_to,
+                "due_date": g.due_date,
+                "resolved": g.resolved,
+                "resolved_at": g.resolved_at,
+            }
+            for g in gaps
+        ],
+    }
