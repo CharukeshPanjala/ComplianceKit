@@ -20,3 +20,9 @@ def generate_rule_id() -> str:
 
 def generate_rule_version_id() -> str:
     return f"rlv_{generate(size=8)}"
+
+def generate_assessment_id() -> str:
+    return f"asm_{generate(size=8)}"
+
+def generate_gap_id() -> str:
+    return f"gap_{generate(size=8)}"

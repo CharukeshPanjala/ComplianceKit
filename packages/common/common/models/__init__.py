@@ -5,6 +5,7 @@ from common.models.company_profile import CompanyProfile, CompanyProfileVersion
 from common.models.saas_tool import SaasTool
 from common.models.regulation import Regulation, RegulationVersion
 from common.models.rule import Rule, RuleVersion
+from common.models.assessment import Assessment, Gap
 
 __all__ = [
     "Base",
@@ -17,4 +18,6 @@ __all__ = [
     "RegulationVersion",
     "Rule",
     "RuleVersion",
+    "Assessment",
+    "Gap",
 ]
