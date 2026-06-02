@@ -17,4 +17,5 @@ RUN uv sync --frozen
 
 EXPOSE 8001
 
-CMD ["sh", "-c", "uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
+# MODE=api (default) or MODE=worker
+CMD ["sh", "-c", "if [ \"$MODE\" = 'worker' ]; then uv run arq app.workers.assessment.WorkerSettings; else uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}; fi"]

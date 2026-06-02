@@ -71,6 +71,22 @@ services:
     env_file:
       - ../../.env
 
+  policy-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/policy-engine/Dockerfile
+    container_name: compliancekit-policy-engine-worker
+    environment:
+      MODE: worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../../.env
+    restart: unless-stopped
+
   document-generator:
     build:
       context: ../..
