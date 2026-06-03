@@ -96,6 +96,8 @@ export const StepSidebar = () => {
     const isComplete = step.number < current;
     const isActive = step.number === current;
     const rowClass = getRowClass(isActive, isComplete);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stepHref = `/onboarding/step/${step.number}` as any;
 
     const inner = (
       <>
@@ -106,12 +108,7 @@ export const StepSidebar = () => {
 
     if (isComplete) {
       return (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        <Link
-          key={step.number}
-          href={`/onboarding/step/${step.number}` as any}
-          className={rowClass}
-        >
+        <Link key={step.number} href={stepHref} className={rowClass}>
           {inner}
         </Link>
       );

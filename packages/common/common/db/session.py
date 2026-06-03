@@ -14,7 +14,8 @@ def _serialize(obj: object) -> object:
         return obj.value
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
-_json_serializer = lambda obj: json.dumps(obj, default=_serialize)
+def _json_serializer(obj: object) -> str:
+    return json.dumps(obj, default=_serialize)
 
 # ── Engines ───────────────────────────────────────────────────────────────────
 

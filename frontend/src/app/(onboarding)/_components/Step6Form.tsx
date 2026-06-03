@@ -615,6 +615,7 @@ export default function Step6Form({ initialData }: Props) {
 
       // If profile was already complete — just go back to dashboard
       if (initialData?.is_complete) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         router.push("/dashboard" as any);
         return;
       }
