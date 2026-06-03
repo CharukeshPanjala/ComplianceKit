@@ -1,11 +1,36 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { apiFetch } from "@/lib/api";
+import { TopBar } from "../_components/TopBar";
+import { DashboardContent } from "./_components/DashboardContent";
+import type { Profile } from "@/types/profile";
+
+// ── Styles ────────────────────────────────────────────────
+
+const styles = {
+  wrapper: "flex flex-col h-full",
+};
+
+// ── Page ──────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const user = await currentUser();
+  let profile: Profile | null = null;
+
+  try {
+    const res = await apiFetch("/api/v1/profile");
+    if (res.ok) profile = await res.json();
+  } catch {
+    // API unreachable — redirect to onboarding
+  }
+
+  if (!profile?.is_complete) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    redirect("/onboarding/step/1" as any);
+  }
+
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">Welcome, {user?.firstName}!</h1>
-      <p className="text-gray-500 mt-2">Your compliance dashboard</p>
+    <div className={styles.wrapper}>
+      <TopBar title="Compliance Dashboard" subtitle="Your real-time compliance posture" />
+      <DashboardContent profile={profile!} />
     </div>
   );
 }

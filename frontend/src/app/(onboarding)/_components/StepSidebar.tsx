@@ -14,6 +14,8 @@ const STEPS = [
   { number: 6, label: "Regulatory Details" },
 ];
 
+// ── Styles ────────────────────────────────────────────────
+
 const styles = {
   aside: "hidden md:flex md:w-64 lg:w-72 bg-navy flex-col h-screen flex-shrink-0 overflow-y-auto",
   logo: {
@@ -42,79 +44,98 @@ const styles = {
   },
   footer: "px-6 py-6 border-t border-white/10",
   footerText: "text-blue-300 text-xs leading-relaxed",
-  row: "flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer",
+  backLink: "mt-3 block text-xs text-blue-300 hover:text-white transition-colors",
 };
 
 // ── Component ─────────────────────────────────────────────
 
-export function StepSidebar() {
+export const StepSidebar = () => {
   const pathname = usePathname();
   const match = pathname.match(/\/step\/(\d+)/);
   const current = match ? Number(match[1]) : 1;
 
+  // ── Helpers ──────────────────────────────────────────
+
+  const getRowClass = (isActive: boolean, isComplete: boolean) =>
+    `${styles.step.row} ${isActive ? styles.step.active : ""} ${
+      !isActive && !isComplete ? styles.step.future : ""
+    }`;
+
+  const getDotClass = (isActive: boolean, isComplete: boolean) =>
+    `${styles.step.dot.base} ${
+      isComplete
+        ? styles.step.dot.complete
+        : isActive
+          ? styles.step.dot.current
+          : styles.step.dot.future
+    }`;
+
+  // ── Render helpers ────────────────────────────────────
+
+  const renderLogo = () => (
+    <div className={styles.logo.wrapper}>
+      <div className={styles.logo.inner}>
+        <div className={styles.logo.icon}>
+          <span className={styles.logo.iconText}>C</span>
+        </div>
+        <span className={styles.logo.name}>ComplianceKit</span>
+      </div>
+      <p className={styles.logo.sub}>Complete your compliance profile</p>
+    </div>
+  );
+
+  const renderStepDot = (step: (typeof STEPS)[0], isActive: boolean, isComplete: boolean) => (
+    <div className={getDotClass(isActive, isComplete)}>{isComplete ? "✓" : step.number}</div>
+  );
+
+  const renderStepLabel = (step: (typeof STEPS)[0], isActive: boolean) => (
+    <p className={isActive ? styles.step.label.active : styles.step.label.inactive}>{step.label}</p>
+  );
+
+  const renderStep = (step: (typeof STEPS)[0]) => {
+    const isComplete = step.number < current;
+    const isActive = step.number === current;
+    const rowClass = getRowClass(isActive, isComplete);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stepHref = `/onboarding/step/${step.number}` as any;
+
+    const inner = (
+      <>
+        {renderStepDot(step, isActive, isComplete)}
+        {renderStepLabel(step, isActive)}
+      </>
+    );
+
+    if (isComplete) {
+      return (
+        <Link key={step.number} href={stepHref} className={rowClass}>
+          {inner}
+        </Link>
+      );
+    }
+
+    return (
+      <div key={step.number} className={rowClass}>
+        {inner}
+      </div>
+    );
+  };
+
+  const renderNav = () => <nav className={styles.nav}>{STEPS.map(renderStep)}</nav>;
+
+  const renderFooter = () => (
+    <div className={styles.footer}>
+      <p className={styles.footerText}>Progress is saved automatically at each step.</p>
+    </div>
+  );
+
+  // ── Render ────────────────────────────────────────────
+
   return (
     <aside className={styles.aside}>
-      {/* Logo */}
-      <div className={styles.logo.wrapper}>
-        <div className={styles.logo.inner}>
-          <div className={styles.logo.icon}>
-            <span className={styles.logo.iconText}>C</span>
-          </div>
-          <span className={styles.logo.name}>ComplianceKit</span>
-        </div>
-        <p className={styles.logo.sub}>Complete your compliance profile</p>
-      </div>
-
-      {/* Steps */}
-      <nav className={styles.nav}>
-        {STEPS.map((step) => {
-          const isComplete = step.number < current;
-          const isActive = step.number === current;
-
-          const rowClass = `${styles.step.row} ${isActive ? styles.step.active : ""} ${
-            !isActive && !isComplete ? styles.step.future : ""
-          }`;
-
-          const inner = (
-            <>
-              <div
-                className={`${styles.step.dot.base} ${
-                  isComplete
-                    ? styles.step.dot.complete
-                    : isActive
-                      ? styles.step.dot.current
-                      : styles.step.dot.future
-                }`}
-              >
-                {isComplete ? "✓" : step.number}
-              </div>
-              <p className={isActive ? styles.step.label.active : styles.step.label.inactive}>
-                {step.label}
-              </p>
-            </>
-          );
-
-          return isComplete ? (
-            <Link
-              key={step.number}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              href={`/onboarding/step/${step.number}` as any}
-              className={rowClass}
-            >
-              {inner}
-            </Link>
-          ) : (
-            <div key={step.number} className={rowClass}>
-              {inner}
-            </div>
-          );
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className={styles.footer}>
-        <p className={styles.footerText}>Progress is saved automatically at each step.</p>
-      </div>
+      {renderLogo()}
+      {renderNav()}
+      {renderFooter()}
     </aside>
   );
-}
+};

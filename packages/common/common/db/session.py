@@ -1,14 +1,29 @@
+import json
 from collections.abc import AsyncGenerator
+from enum import Enum
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from common.config import BaseServiceSettings
 
 settings = BaseServiceSettings()
 
-# Superuser engine — bypasses RLS. Only for webhooks/admin use.
+# ── JSON serializer ───────────────────────────────────────────────────────────
+
+def _serialize(obj: object) -> object:
+    """Handle non-JSON-serializable types — enums serialize to their value."""
+    if isinstance(obj, Enum):
+        return obj.value
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+def _json_serializer(obj: object) -> str:
+    return json.dumps(obj, default=_serialize)
+
+# ── Engines ───────────────────────────────────────────────────────────────────
+
 admin_engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     pool_pre_ping=True,
+    json_serializer=_json_serializer,
 )
 
 AdminSessionLocal = async_sessionmaker(
@@ -19,9 +34,10 @@ AdminSessionLocal = async_sessionmaker(
 
 # app_user engine — RLS enforced. Used for all authenticated requests.
 app_user_engine = create_async_engine(
-    settings.app_user_database_url or settings.database_url,  # fallback for CI
+    settings.app_user_database_url or settings.database_url,
     echo=settings.debug,
     pool_pre_ping=True,
+    json_serializer=_json_serializer,
 )
 
 AppUserSessionLocal = async_sessionmaker(
