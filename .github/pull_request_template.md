@@ -1,7 +1,8 @@
 ## What does this PR do?
-<!-- One sentence summary -->
+<!-- 1-2 paragraphs. Name the components, endpoints, features built. Mention important fixes. -->
 
-## Ticket
+## Tickets
+<!-- One line per ticket -->
 Closes: COM-
 
 ## Type of change
