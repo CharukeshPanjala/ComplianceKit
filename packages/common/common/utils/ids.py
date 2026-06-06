@@ -26,3 +26,6 @@ def generate_assessment_id() -> str:
 
 def generate_gap_id() -> str:
     return f"gap_{generate(size=8)}"
+
+def generate_ropa_id() -> str:
+    return f"rop_{generate(size=8)}"

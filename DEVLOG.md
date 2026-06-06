@@ -2182,3 +2182,40 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `services/policy-engine/app/main.py` — CORS middleware
 - `services/policy-engine/app/routers/assessments.py` — latest endpoint fix + gap resolve + history + stats endpoints
 - `services/policy-engine/app/workers/assessment.py` — populate title/plain_english/remediation_hint
+
+---
+
+## COM-171 — ropa_entries Table + RLS
+
+**Date:** 2026-06-06
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Designed `ropa_entries` schema covering full GDPR Art. 30 requirements (34 columns)
+- Created `RopaEntry` SQLAlchemy model with 4 enums: `RopaLegalBasis`, `RopaStatus`, `RopaSource`, `RopaDataRole`
+- Added `generate_ropa_id()` to ids.py (`rop_` prefix)
+- Migration `44f5e10e6092` — creates table, 6 indexes, RLS (enable + force + tenant_isolation policy)
+- Updated CLAUDE.md with correct local migration workflow (rule 15)
+
+### Key Decisions
+
+- **Option B chosen** — dedicated `ropa_entries` table, not reusing `policies` table. ROPA under Art. 30 is a register of individual processing activities; a flat table makes the editable UI and PDF generation cleaner
+- **34 columns for long-term completeness** — includes Art. 22 (automated decisions), Art. 35 (DPIA), Art. 9 (special categories), review/approval lifecycle, legal basis documentation fields. All nullable — no migration cost later
+- **`regulation_id` FK** — links each entry to a regulation (defaults GDPR, future-proofs for NIS2/AI Act)
+- **`source_profile_id` FK** — links auto-generated entries back to the company profile they were built from
+- **Deferred:** `joint_controllers` JSONB, `ropa_entry_versions` audit table, processor FK to future `processors` table (COM-180)
+- **`documents` table note** — will need a `ropa_id` FK column added in COM-173 migration when ROPA PDF export is built
+
+### Migration Workflow Learned
+
+- `DATABASE_URL` in `.env` uses Docker internal hostname (`compliancekit-postgres`) — must override to `localhost` when running alembic locally
+- Correct order: write model → autogenerate locally with `DATABASE_URL=... uv run alembic revision --autogenerate` → edit (remove GIN/IVFFlat drops, add RLS) → apply with `DATABASE_URL=... uv run alembic upgrade head` → `make rebuild-api`
+
+### Files Changed
+
+- `packages/common/common/utils/ids.py` — added `generate_ropa_id`
+- `packages/common/common/models/ropa.py` ← new
+- `packages/common/common/models/__init__.py` — exported `RopaEntry`
+- `packages/common/alembic/versions/44f5e10e6092_add_ropa_entries_table.py` ← new
+- `CLAUDE.md` — rule 15 (migration workflow) + ticket workflow updated
