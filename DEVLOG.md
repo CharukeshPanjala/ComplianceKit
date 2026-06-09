@@ -2219,3 +2219,43 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `packages/common/common/models/__init__.py` — exported `RopaEntry`
 - `packages/common/alembic/versions/44f5e10e6092_add_ropa_entries_table.py` ← new
 - `CLAUDE.md` — rule 15 (migration workflow) + ticket workflow updated
+
+## COM-172 — ROPA Generator
+
+**Date:** 2026-06-09
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Added two new enums to `ropa.py`: `TransferMechanism` (5 values: scc, bcr, adequacy_decision, derogation, none) and `SpecialCategoryCondition` (10 Art. 9(2) conditions)
+- Added two nullable columns to `ropa_entries`: `transfer_mechanism` and `special_category_condition`
+- Migration `653d73ea41c8` — adds both columns + creates PostgreSQL enum types explicitly before `add_column`
+- Pure Python `RopaGenerator` engine in `policy-engine/app/engine/ropa_generator.py` — maps processing purposes to `GeneratedEntry` dataclasses with full GDPR field resolution
+- 14 known purpose slugs mapped (marketing, analytics, hr_management, etc.) with per-activity legal basis defaults
+- `POST /api/v1/ropa/generate` — idempotent, deletes AUTO_GENERATED entries and regenerates from current profile
+- `GET /api/v1/ropa` — lists all entries for the tenant
+- 16 unit tests, all passing
+
+### Key Decisions
+
+- **Policy-engine owns ROPA endpoints** — same pattern as assessments. Frontend calls policy-engine directly at POLICY_BASE (port 8001)
+- **Synchronous generation** — no ARQ worker needed. Pure Python, <1ms, no reason to async queue it
+- **Idempotent generate** — deletes AUTO_GENERATED, preserves MANUAL entries. Safe to re-run after profile changes
+- **Default transfer mechanism = SCC** — most common for EEA→outside transfers. User edits in COM-173 UI
+- **Default special category condition = explicit_consent** — safest starting point per Art. 9(2)(a). User edits in COM-173 UI
+- **DPIA flag logic** — requires both special category data AND large scale (over_100k or under_100k subjects). Intentionally conservative
+
+### Gotchas
+
+- `sa.Enum(..., name='...')` in `add_column` does NOT auto-create the PostgreSQL type — must `CREATE TYPE` explicitly in migration before `add_column`. This only affects adding enum columns to existing tables; `create_table` handles it automatically
+- The migration hook blocks all edits to files under `alembic/versions/` regardless of whether they've been applied. Freshly generated unrun migrations can be edited (rule 6 updated in CLAUDE.md)
+
+### Files Changed
+
+- `packages/common/common/models/ropa.py` — added `TransferMechanism`, `SpecialCategoryCondition` enums + columns
+- `packages/common/alembic/versions/653d73ea41c8_add_transfer_mechanism_and_special_.py` ← new
+- `services/policy-engine/app/engine/ropa_generator.py` ← new
+- `services/policy-engine/app/routers/ropa.py` ← new
+- `services/policy-engine/app/main.py` — added ropa router
+- `services/policy-engine/tests/test_ropa_generator.py` ← new
+- `CLAUDE.md` — rules 6, 12, 13 updated/added

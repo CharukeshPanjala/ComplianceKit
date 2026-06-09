@@ -36,6 +36,27 @@ class RopaDataRole(str, enum.Enum):
     PROCESSOR = "processor"
 
 
+class TransferMechanism(str, enum.Enum):
+    SCC = "scc"
+    BCR = "bcr"
+    ADEQUACY_DECISION = "adequacy_decision"
+    DEROGATION = "derogation"
+    NONE = "none"
+
+
+class SpecialCategoryCondition(str, enum.Enum):
+    EXPLICIT_CONSENT = "explicit_consent"       # Art. 9(2)(a)
+    EMPLOYMENT_LAW = "employment_law"           # Art. 9(2)(b)
+    VITAL_INTERESTS = "vital_interests"         # Art. 9(2)(c)
+    NON_PROFIT = "non_profit"                   # Art. 9(2)(d)
+    MADE_PUBLIC = "made_public"                 # Art. 9(2)(e)
+    LEGAL_CLAIMS = "legal_claims"               # Art. 9(2)(f)
+    PUBLIC_INTEREST = "public_interest"         # Art. 9(2)(g)
+    HEALTH_CARE = "health_care"                 # Art. 9(2)(h)
+    PUBLIC_HEALTH = "public_health"             # Art. 9(2)(i)
+    RESEARCH = "research"                       # Art. 9(2)(j)
+
+
 class RopaEntry(Base):
     __tablename__ = "ropa_entries"
 
@@ -76,6 +97,9 @@ class RopaEntry(Base):
     data_subject_categories: Mapped[list | None] = mapped_column(ARRAY(Text), nullable=True)
     has_special_category_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     special_category_types: Mapped[list | None] = mapped_column(ARRAY(Text), nullable=True)
+    special_category_condition: Mapped[SpecialCategoryCondition | None] = mapped_column(
+        pg_enum(SpecialCategoryCondition), nullable=True
+    )
 
     # Automated decision making (Art. 22)
     has_automated_decision_making: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -85,6 +109,9 @@ class RopaEntry(Base):
     recipient_categories: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     processing_locations: Mapped[list | None] = mapped_column(ARRAY(Text), nullable=True)
     third_party_transfers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    transfer_mechanism: Mapped[TransferMechanism | None] = mapped_column(
+        pg_enum(TransferMechanism), nullable=True
+    )
     processors: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Retention and security
