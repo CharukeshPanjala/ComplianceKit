@@ -2259,3 +2259,41 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `services/policy-engine/app/main.py` — added ropa router
 - `services/policy-engine/tests/test_ropa_generator.py` ← new
 - `CLAUDE.md` — rules 6, 12, 13 updated/added
+
+## COM-173 — ROPA API + Editable UI + PDF Export
+
+**Date:** 2026-06-09
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Full CRUD API in policy-engine: `POST /api/v1/ropa`, `GET /api/v1/ropa/{id}`, `PATCH /api/v1/ropa/{id}`, `DELETE /api/v1/ropa/{id}`, `PATCH /api/v1/ropa/{id}/status`
+- `GET /api/v1/ropa/export/pdf` — Art. 30 register as A4 landscape PDF via reportlab
+- `pdf_generator.py` — navy/amber branded table PDF with legal basis labels, DPIA flags
+- `ropaApi.ts` — typed API client for all ROPA endpoints including PDF download trigger
+- `useRopa.ts` — TanStack Query hooks: list, generate, create, update, status, delete, export
+- `/ropa` page — loading/error/empty states, full table with edit modal
+- `RopaTable.tsx` — sortable table, status badges, DPIA tag, edit + delete per row, regenerate + export PDF buttons
+- `RopaEditModal.tsx` — full edit form: activity, legal basis, retention, transfers, special category condition, DPIA
+- `RopaEmptyState.tsx` — generate-from-profile CTA
+- Removed `comingSoon: true` from ROPA sidebar entry
+
+### Key Decisions
+
+- `reportlab` chosen over `weasyprint` — pure Python, no system deps, sufficient for tabular PDF
+- `/export/pdf` route defined before `/{ropa_id}` in the router — avoids FastAPI treating "export" as a ropa_id path param
+- PDF export triggers browser download via `URL.createObjectURL` — no server-side file storage needed
+- Status change handled via dedicated `PATCH /{id}/status` rather than generic PATCH — cleaner intent
+
+### Files Changed
+
+- `services/policy-engine/pyproject.toml` — added reportlab
+- `services/policy-engine/app/engine/pdf_generator.py` ← new
+- `services/policy-engine/app/routers/ropa.py` — full CRUD + PDF
+- `frontend/src/lib/ropaApi.ts` ← new
+- `frontend/src/lib/hooks/useRopa.ts` ← new
+- `frontend/src/app/(portal)/ropa/page.tsx` ← new
+- `frontend/src/app/(portal)/ropa/_components/RopaTable.tsx` ← new
+- `frontend/src/app/(portal)/ropa/_components/RopaEditModal.tsx` ← new
+- `frontend/src/app/(portal)/ropa/_components/RopaEmptyState.tsx` ← new
+- `frontend/src/app/(portal)/_components/Sidebar.tsx` — removed comingSoon from ROPA
