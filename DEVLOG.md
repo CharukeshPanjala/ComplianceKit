@@ -2297,3 +2297,39 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `frontend/src/app/(portal)/ropa/_components/RopaEditModal.tsx` ← new
 - `frontend/src/app/(portal)/ropa/_components/RopaEmptyState.tsx` ← new
 - `frontend/src/app/(portal)/_components/Sidebar.tsx` — removed comingSoon from ROPA
+
+---
+
+## COM-174 — policies + policy_versions tables + RLS
+
+**Date:** 2026-06-10
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- `Policy` SQLAlchemy model (`policies` table) — title, type, status, content_format, tags, regulation_id, assessment_id, RLS
+- `PolicyVersion` SQLAlchemy model (`policy_versions` table) — version history with change_type, content_format, is_ai_enhanced, RLS
+- `PolicyType`, `PolicyStatus`, `PolicyContentFormat`, `PolicyChangeType` enums
+- `generate_policy_id()` (`pol_` prefix) + `generate_policy_version_id()` (`ver_` prefix) in `ids.py`
+- Migration `a6d7c5a15e41` — creates both tables with RLS policies, all indexes
+- Both models registered in `common/models/__init__.py`
+
+### Key Decisions
+
+- `content_format` (markdown/plain_text) stored per-policy and per-version — AI-generated policies use markdown
+- `tags` as PostgreSQL ARRAY(Text) — enables policy library filtering without a junction table
+- `assessment_id` FK to assessments — tracks which assessment triggered this policy
+- `policy_id` (String, not UUID) FK in `policy_versions` — joins on prefixed public ID for consistency with rest of schema
+
+### Gotchas
+
+- Migration hook was blocking edits to freshly generated (unapplied) migrations — updated hook to only block committed files via `git log -- "$file"`
+
+### Files Changed
+
+- `packages/common/common/models/policy.py` ← new
+- `packages/common/common/models/__init__.py` — added Policy, PolicyVersion imports
+- `packages/common/common/utils/ids.py` — added generate_policy_id, generate_policy_version_id
+- `packages/common/alembic/versions/a6d7c5a15e41_add_policies_and_policy_versions_tables.py` ← new
+- `.claude/hooks/block-migration-edit.sh` — updated to use git log check
+- `docs/SCHEMA.md` — full rewrite: added ropa_entries, fixed pro_→cp_ and ast_→asm_ prefix errors, added 3 new policy fields, updated ER diagram

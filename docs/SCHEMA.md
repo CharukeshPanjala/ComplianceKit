@@ -45,6 +45,7 @@ erDiagram
         enum company_size
         enum b2b_or_b2c
         enum number_of_data_subjects
+        enum data_role
         string website_url
         string primary_jurisdiction
         boolean uses_cloud_services
@@ -59,6 +60,7 @@ erDiagram
         jsonb data_categories_processed
         jsonb processing_purposes
         jsonb data_subject_categories
+        jsonb tech_stack
         date last_audit_date
         boolean previous_regulatory_action
         string regulatory_authority
@@ -135,16 +137,21 @@ erDiagram
         text description
         text plain_english
         enum severity
+        string fine_tier
+        string check_type
         string profile_field
         jsonb evaluation_logic
         text remediation_hint
         jsonb remediation_steps
         jsonb remediation_resources
+        jsonb applicability_tags
         boolean applies_to_b2c
         boolean applies_to_b2b
         jsonb applies_to_sizes
+        boolean is_mandatory
         boolean requires_special_data
         boolean is_active
+        vector embedding
         timestamp deprecated_at
         timestamp created_at
         timestamp updated_at
@@ -172,26 +179,24 @@ erDiagram
         uuid id PK
         string assessment_id UK
         string tenant_id FK
-        string tenant_name
         string regulation_id FK
         string regulation_name
         string regulation_version_id FK
-        string regulation_version
+        uuid previous_assessment_id FK
+        jsonb profile_snapshot
         int score
-        int previous_score
-        int score_change
+        enum risk_level
         enum status
-        enum triggered_by
-        int total_rules_evaluated
-        int total_gaps_found
-        int critical_gaps
-        int high_gaps
-        int medium_gaps
-        int low_gaps
-        string created_by FK
-        timestamp created_at
-        timestamp started_at
+        string triggered_by FK
+        int total_rules
+        int applicable_rules
+        int met_rules
+        int partial_rules
+        int not_met_rules
+        int unknown_rules
+        timestamp expires_at
         timestamp completed_at
+        timestamp created_at
         timestamp updated_at
     }
 
@@ -199,25 +204,74 @@ erDiagram
         uuid id PK
         string gap_id UK
         string tenant_id FK
-        string tenant_name
-        string assessment_id FK
-        string rule_id FK
-        string rule_version_id FK
-        string article
-        string rule_title
+        uuid assessment_id FK
+        uuid rule_id FK
+        uuid regulation_id FK
+        uuid regulation_version_id FK
         string regulation_name
-        enum severity
-        int score_impact
-        enum status
+        string article
+        int article_number
+        string chapter
+        string category
+        string severity
+        string fine_tier
+        string title
+        text plain_english
         text remediation_hint
+        enum status
+        float score
+        jsonb evidence
+        enum remediation_priority
         jsonb remediation_steps
-        string resolved_by FK
+        jsonb remediation_resources
+        boolean resolved
         timestamp resolved_at
-        text resolution_notes
-        string accepted_risk_by FK
-        timestamp accepted_risk_at
-        text accepted_risk_reason
-        timestamp accepted_risk_expires_at
+        string resolved_by FK
+        string notes
+        string assigned_to
+        date due_date
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ROPA_ENTRIES {
+        uuid id PK
+        string public_id UK
+        string tenant_id FK
+        uuid regulation_id FK
+        uuid source_profile_id FK
+        string category
+        enum data_role
+        text activity_name
+        text purpose
+        enum legal_basis
+        text legal_obligation_reference
+        text legitimate_interest_description
+        array data_categories
+        array data_subject_categories
+        boolean has_special_category_data
+        array special_category_types
+        enum special_category_condition
+        boolean has_automated_decision_making
+        text automated_decision_description
+        jsonb recipient_categories
+        array processing_locations
+        jsonb third_party_transfers
+        enum transfer_mechanism
+        jsonb processors
+        text retention_period
+        text security_measures
+        boolean requires_dpia
+        boolean dpia_completed
+        enum status
+        enum source
+        timestamp last_reviewed_at
+        date next_review_date
+        string reviewed_by FK
+        string approved_by FK
+        timestamp approved_at
+        string created_by FK
+        string updated_by FK
         timestamp created_at
         timestamp updated_at
     }
@@ -231,10 +285,13 @@ erDiagram
         enum type
         enum status
         string language
+        enum content_format
         int current_version
         text content
+        array tags
         boolean is_ai_enhanced
-        string regulation_id FK
+        uuid regulation_id FK
+        uuid assessment_id FK
         string related_article
         string created_by FK
         string reviewed_by FK
@@ -254,6 +311,7 @@ erDiagram
         int version_number
         enum status
         string language
+        enum content_format
         string title
         text content
         boolean is_ai_enhanced
@@ -335,16 +393,19 @@ erDiagram
     TENANTS ||--o{ USERS : "has many"
     TENANTS ||--o| COMPANY_PROFILES : "has one"
     TENANTS ||--o{ ASSESSMENTS : "has many"
+    TENANTS ||--o{ ROPA_ENTRIES : "has many"
     TENANTS ||--o{ POLICIES : "has many"
     TENANTS ||--o{ DSAR_REQUESTS : "has many"
     TENANTS ||--o{ DOCUMENTS : "has many"
     TENANTS ||--o{ GAPS : "has many"
 
     COMPANY_PROFILES ||--o{ COMPANY_PROFILE_VERSIONS : "has many"
+    COMPANY_PROFILES ||--o{ ROPA_ENTRIES : "generated from"
 
     REGULATIONS ||--o{ REGULATION_VERSIONS : "has many"
     REGULATIONS ||--o{ RULES : "has many"
     REGULATIONS ||--o{ ASSESSMENTS : "has many"
+    REGULATIONS ||--o{ ROPA_ENTRIES : "has many"
     REGULATIONS ||--o{ POLICIES : "has many"
 
     REGULATION_VERSIONS ||--o{ RULES : "has many"
@@ -356,6 +417,7 @@ erDiagram
 
     ASSESSMENTS ||--o{ GAPS : "has many"
     ASSESSMENTS ||--o{ DOCUMENTS : "has many"
+    ASSESSMENTS ||--o{ POLICIES : "triggered"
 
     POLICIES ||--o{ POLICY_VERSIONS : "has many"
     POLICIES ||--o{ DOCUMENTS : "has many"
@@ -380,7 +442,7 @@ erDiagram
 | Column              | Type   | Description                                      |
 | ------------------- | ------ | ------------------------------------------------ |
 | id                  | UUID   | Internal primary key, never exposed in API       |
-| tenant_id           | STRING | Public ID e.g. `ten_4x7k9p2m`                    |
+| tenant_id           | STRING | Clerk org ID, used as PK in tenant tables        |
 | name                | STRING | Company full name e.g. "Acme GmbH"               |
 | slug                | STRING | URL-friendly name e.g. "acme-gmbh"               |
 | plan                | ENUM   | free / pro / enterprise                          |
@@ -401,7 +463,7 @@ erDiagram
 
 | Column      | Type   | Description                              |
 | ----------- | ------ | ---------------------------------------- |
-| user_id     | STRING | Public ID e.g. `usr_9m3kx7p1`            |
+| user_id     | STRING | Clerk user ID, used as PK                |
 | tenant_id   | STRING | Which company this user belongs to       |
 | tenant_name | STRING | Denormalised from tenants.name           |
 | email       | STRING | Unique across the entire platform        |
@@ -421,6 +483,7 @@ erDiagram
 - `gdpr_data`, `nis2_data`, `ai_act_data` are JSONB to allow adding new regulation-specific fields without schema migrations.
 - Core fields (industry, size, jurisdiction) stay as typed columns because the gap engine filters rules based on them.
 - `is_complete` gates gap analysis — engine only runs on completed profiles.
+- `data_role` (controller / processor / both) drives applicability filtering — processors skip controller-only obligations.
 - Adding a new regulation (e.g. Data Act) = add a `data_act_data` JSONB column. One migration, then all future fields are flexible.
 
 | Column                  | Type   | Description                                                                            |
@@ -431,10 +494,12 @@ erDiagram
 | company_size            | ENUM   | 1-10 / 11-50 / 51-200 / 201-1000 / 1000+                                               |
 | b2b_or_b2c              | ENUM   | b2b / b2c / both                                                                       |
 | number_of_data_subjects | ENUM   | under_1k / under_10k / under_100k / over_100k                                          |
+| data_role               | ENUM   | controller / processor / both                                                          |
 | primary_jurisdiction    | STRING | Country code e.g. DE, FR, IE                                                           |
-| gdpr_data               | JSONB  | 48 GDPR-specific compliance fields                                                     |
-| nis2_data               | JSONB  | 40 NIS2-specific compliance fields                                                     |
-| ai_act_data             | JSONB  | 40 EU AI Act-specific compliance fields                                                |
+| tech_stack              | JSONB  | List of SaaS tool names from onboarding step 2                                         |
+| gdpr_data               | JSONB  | GDPR-specific compliance fields (lawful bases, transfers, processors etc.)             |
+| nis2_data               | JSONB  | NIS2-specific compliance fields (sectors, entity type etc.)                            |
+| ai_act_data             | JSONB  | EU AI Act-specific compliance fields (uses_ai, role, high_risk_categories etc.)        |
 | is_complete             | BOOL   | Whether profile is complete enough to run analysis                                     |
 
 ---
@@ -472,7 +537,7 @@ erDiagram
 | Column          | Type   | Description                                |
 | --------------- | ------ | ------------------------------------------ |
 | regulation_id   | STRING | Public ID e.g. `reg_xxx`                   |
-| name            | STRING | GDPR / NIS2 / AI_ACT                       |
+| name            | STRING | GDPR / NIS2 / EU_AI_ACT                    |
 | full_name       | STRING | "General Data Protection Regulation"       |
 | jurisdiction    | STRING | EU / UK / Global                           |
 | authority       | STRING | "European Data Protection Board"           |
@@ -507,29 +572,33 @@ erDiagram
 
 ### 7. rules
 
-**Purpose:** Every individual compliance requirement across all regulations. This is the brain of the gap engine — it tells the engine what to check, how to check it, and how serious a failure is.
+**Purpose:** Every individual compliance requirement across all regulations. The brain of the gap engine — tells it what to check, how serious a failure is, and how to remediate.
 
 **Key design decisions:**
 
-- `evaluation_logic` JSONB allows complex conditional rules without code changes. New rules can be added by inserting data, not writing Python.
-- `applies_to_*` fields filter rules so companies aren't penalised for rules that don't apply to them (e.g. SME exemptions).
-- `plain_english` keeps legal jargon out of the UI — customers see simple explanations, not article text.
+- `fine_tier` and `severity` are separate — fine exposure doesn't always map 1:1 to operational severity.
+- `check_type` = `informational` rules are never scored — they're awareness only.
+- `applicability_tags` JSONB used by the applicability engine for fast rule filtering by profile characteristics.
+- `embedding` (pgvector) enables semantic search over rule text — used by DPO Assistant RAG (COM-187).
+- `plain_english` keeps legal jargon out of the UI.
 
-| Column                | Type   | Description                                             |
-| --------------------- | ------ | ------------------------------------------------------- |
-| rule_id               | STRING | Public ID e.g. `rul_xxx`                                |
-| regulation_id         | STRING | Which regulation this rule belongs to                   |
-| regulation_version_id | STRING | Which regulation version introduced this rule           |
-| current_version_id    | STRING | Shortcut to latest rule_version                         |
-| article               | STRING | e.g. "Article 37"                                       |
-| severity              | ENUM   | critical / high / medium / low                          |
-| profile_field         | STRING | Which company_profiles field to evaluate                |
-| evaluation_logic      | JSONB  | How to evaluate the rule                                |
-| remediation_hint      | TEXT   | What to do to fix this gap                              |
-| applies_to_b2c        | BOOL   | Whether rule applies to B2C companies                   |
-| applies_to_b2b        | BOOL   | Whether rule applies to B2B companies                   |
-| applies_to_sizes      | JSONB  | Which company sizes this rule applies to                |
-| requires_special_data | BOOL   | Only applies if company processes special category data |
+| Column                | Type    | Description                                             |
+| --------------------- | ------- | ------------------------------------------------------- |
+| rule_id               | STRING  | Public ID e.g. `rul_xxx`                                |
+| regulation_id         | STRING  | Which regulation this rule belongs to                   |
+| regulation_version_id | STRING  | Which regulation version introduced this rule           |
+| article               | STRING  | e.g. "Article 37"                                       |
+| article_number        | INT     | Numeric for sorting e.g. 37                             |
+| severity              | ENUM    | critical / high / medium / low                          |
+| fine_tier             | STRING  | tier_1 (2% global turnover) / tier_2 (4%)               |
+| check_type            | STRING  | profile_field / document / informational                |
+| is_mandatory          | BOOL    | Whether this rule is mandatory regardless of profile    |
+| profile_field         | STRING  | Which company_profiles field to evaluate                |
+| remediation_hint      | TEXT    | What to do to fix this gap                              |
+| applicability_tags    | JSONB   | Fast filter tags used by applicability engine           |
+| applies_to_b2c        | BOOL    | Whether rule applies to B2C companies                   |
+| applies_to_b2b        | BOOL    | Whether rule applies to B2B companies                   |
+| embedding             | VECTOR  | pgvector embedding for semantic search (COM-187)        |
 
 ---
 
@@ -555,79 +624,145 @@ erDiagram
 
 ### 9. assessments
 
-**Purpose:** One row per compliance check run for a tenant. Stores the score, gap counts, and links to the exact regulation version evaluated against.
+**Purpose:** One row per compliance check run for a tenant. Stores the score, risk level, gap counts, and a snapshot of the profile at the time of assessment.
 
 **Key design decisions:**
 
-- `regulation_version_id` permanently stamps which version of the regulation was active. Future regulation updates don't retroactively change historical assessments.
-- `previous_score` and `score_change` are pre-calculated so the dashboard can show trends without querying previous assessments.
-- Gap counts (`critical_gaps`, `high_gaps` etc) are denormalised for fast dashboard queries.
+- `profile_snapshot` JSONB captures the full profile at assessment time — future profile changes don't retroactively alter historical assessments.
+- `regulation_version_id` permanently stamps which regulation version was active.
+- `risk_level` (critical / high / medium / low) is pre-calculated from score for fast dashboard display.
+- `previous_assessment_id` enables score trend calculation without querying history.
 
-| Column                | Type   | Description                              |
-| --------------------- | ------ | ---------------------------------------- |
-| assessment_id         | STRING | Public ID e.g. `ast_xxx`                 |
-| tenant_id             | STRING | Which company this assessment belongs to |
-| regulation_id         | STRING | Which regulation was assessed            |
-| regulation_version_id | STRING | Which version was active when this ran   |
-| score                 | INT    | Compliance score 0-100                   |
-| previous_score        | INT    | Score from previous assessment           |
-| score_change          | INT    | Delta e.g. +5, -3                        |
-| triggered_by          | ENUM   | manual / scheduled / profile_change      |
-| total_gaps_found      | INT    | Total gaps found                         |
-| critical_gaps         | INT    | Number of critical gaps                  |
-| high_gaps             | INT    | Number of high gaps                      |
+| Column                | Type   | Description                                    |
+| --------------------- | ------ | ---------------------------------------------- |
+| assessment_id         | STRING | Public ID e.g. `asm_xxx`                        |
+| tenant_id             | STRING | Which company this assessment belongs to        |
+| regulation_id         | STRING | Which regulation was assessed                   |
+| regulation_version_id | STRING | Which version was active when this ran          |
+| profile_snapshot      | JSONB  | Full profile at time of assessment              |
+| score                 | FLOAT  | Compliance score 0-100                          |
+| risk_level            | ENUM   | critical / high / medium / low                  |
+| status                | ENUM   | pending / running / completed / failed          |
+| total_rules           | INT    | Total rules evaluated                           |
+| applicable_rules      | INT    | Rules applicable to this company                |
+| met_rules             | INT    | Rules fully met                                 |
+| partial_rules         | INT    | Rules partially met                             |
+| not_met_rules         | INT    | Rules not met (gaps)                            |
 
 ---
 
 ### 10. gaps
 
-**Purpose:** Every individual compliance failure found in an assessment. Drives the gap list on the dashboard and the remediation workflow.
+**Purpose:** Every individual compliance failure found in an assessment. Drives the gap list, remediation roadmap, and score calculation.
 
 **Key design decisions:**
 
-- `rule_version_id` links to the exact rule version that found this gap — future rule updates don't change historical gap records.
-- `article`, `rule_title`, `regulation_name` are denormalised so the gap remains readable even if the rule is later updated.
-- `accepted_risk` allows companies to formally acknowledge a gap with a reason and expiry — legally important for documented risk decisions.
-- `accepted_risk_expires_at` forces periodic review of accepted risks — they can't be accepted indefinitely.
+- `article`, `title`, `plain_english`, `regulation_name` are denormalised so gaps remain readable even after rule updates.
+- `evidence` JSONB captures why the engine marked this gap — useful for auditors and appeals.
+- `remediation_priority` (critical / high / medium / low) is separate from severity — an easy win might be low severity but high priority.
+- `resolved` boolean with `resolved_at` timestamp enables gap management workflow without deleting rows.
 
-| Column                   | Type      | Description                                  |
-| ------------------------ | --------- | -------------------------------------------- |
-| gap_id                   | STRING    | Public ID e.g. `gap_xxx`                     |
-| assessment_id            | STRING    | Which assessment found this gap              |
-| rule_id                  | STRING    | Which rule was failed                        |
-| rule_version_id          | STRING    | Exact rule version at time of assessment     |
-| severity                 | ENUM      | critical / high / medium / low               |
-| score_impact             | INT       | Points deducted e.g. -15, -8, -4, -1         |
-| status                   | ENUM      | open / resolved / accepted_risk / superseded |
-| accepted_risk_expires_at | TIMESTAMP | When accepted risk must be reviewed          |
+| Column               | Type   | Description                                        |
+| -------------------- | ------ | -------------------------------------------------- |
+| gap_id               | STRING | Public ID e.g. `gap_xxx`                           |
+| assessment_id        | UUID   | Which assessment found this gap                    |
+| rule_id              | UUID   | Which rule was failed                              |
+| regulation_name      | STRING | Denormalised e.g. "GDPR"                           |
+| article              | STRING | e.g. "Article 37"                                  |
+| severity             | ENUM   | critical / high / medium / low                     |
+| status               | ENUM   | met / partial / not_met / unknown / not_applicable |
+| score                | FLOAT  | Rule score 0-1                                     |
+| evidence             | JSONB  | Why the engine scored this way                     |
+| remediation_priority | ENUM   | critical / high / medium / low                     |
+| resolved             | BOOL   | Whether the gap has been resolved                  |
+| resolved_at          | TIMESTAMP | When resolved                                   |
+| notes                | STRING | Free-text notes from compliance officer            |
+| due_date             | DATE   | Target resolution date                             |
 
 ---
 
-### 11. policies
+### 11. ropa_entries
 
-**Purpose:** Compliance documents a company creates — privacy notices, RoPA, DPAs etc. The gap engine checks for active policies to auto-close related gaps.
+**Purpose:** GDPR Article 30 Records of Processing Activities. Each row = one processing activity (e.g. "Marketing and Communications", "HR Data Processing"). Can be auto-generated from company profile or created manually. Driven by COM-172/173.
+
+**Key design decisions:**
+
+- `source` (auto_generated / manual) distinguishes generator output from user-created entries — regenerating only deletes AUTO_GENERATED rows, never MANUAL ones.
+- `transfer_mechanism` documents the Art. 46 legal basis for EEA→outside transfers (SCCs, BCRs, adequacy decision, etc.).
+- `special_category_condition` records which Art. 9(2) exemption applies — required when processing health, biometric, genetic etc. data.
+- `requires_dpia` is set automatically by the generator when special category data + large scale; user can override.
+- `source_profile_id` links auto-generated entries to the profile snapshot they were built from.
+- RLS enforced — tenants can only see their own entries.
+
+| Column                      | Type   | Description                                                                    |
+| --------------------------- | ------ | ------------------------------------------------------------------------------ |
+| public_id                   | STRING | Public ID e.g. `rop_xxx`                                                       |
+| tenant_id                   | STRING | Which company this entry belongs to                                            |
+| regulation_id               | UUID   | Always GDPR (Art. 30 requirement)                                              |
+| source_profile_id           | UUID   | Profile this was generated from (nullable for manual entries)                  |
+| activity_name               | TEXT   | e.g. "Marketing and Communications"                                            |
+| purpose                     | TEXT   | Processing purpose slug e.g. "marketing"                                       |
+| category                    | STRING | Activity category e.g. "marketing", "hr", "analytics"                         |
+| data_role                   | ENUM   | controller / processor                                                         |
+| legal_basis                 | ENUM   | consent / contract / legal_obligation / vital_interests / public_task / legitimate_interests |
+| legal_obligation_reference  | TEXT   | If legal_obligation — which law? e.g. "Employment Act 2002"                    |
+| legitimate_interest_description | TEXT | If legitimate_interests — what's the interest?                              |
+| data_categories             | ARRAY  | e.g. ["email", "name", "health"]                                               |
+| data_subject_categories     | ARRAY  | e.g. ["customers", "employees"]                                                |
+| has_special_category_data   | BOOL   | Whether Art. 9 special category data is processed                              |
+| special_category_types      | ARRAY  | Which special types e.g. ["health", "biometric"]                               |
+| special_category_condition  | ENUM   | Art. 9(2) condition: explicit_consent / employment_law / vital_interests / non_profit / made_public / legal_claims / public_interest / health_care / public_health / research |
+| has_automated_decision_making | BOOL | Whether Art. 22 automated decisions apply                                      |
+| processing_locations        | ARRAY  | Where data is processed e.g. ["IE", "aws", "gcp"]                              |
+| third_party_transfers       | JSONB  | Details of transfers outside EEA                                               |
+| transfer_mechanism          | ENUM   | scc / bcr / adequacy_decision / derogation / none                              |
+| processors                  | JSONB  | Third-party processors used e.g. {"tools": ["Salesforce", "Mailchimp"]}        |
+| retention_period            | TEXT   | e.g. "2 years after contract end"                                              |
+| security_measures           | TEXT   | Summary of technical/organisational measures                                   |
+| requires_dpia               | BOOL   | Whether a DPIA (Art. 35) is required                                           |
+| dpia_completed              | BOOL   | Whether the DPIA has been completed                                            |
+| status                      | ENUM   | draft / active / archived                                                      |
+| source                      | ENUM   | auto_generated / manual                                                        |
+| next_review_date            | DATE   | When this entry should next be reviewed                                        |
+
+---
+
+### 12. policies
+
+**Purpose:** Compliance documents a company creates — privacy notices, DPAs, cookie policies, data retention policies etc. The gap engine checks for active policies to auto-close related gaps.
 
 **Key design decisions:**
 
 - `regulation_id` links each policy to the regulation it satisfies — enables the gap engine to auto-close gaps when the right policy exists.
+- `assessment_id` links to the assessment that triggered this policy being needed — tracks which gaps drove the policy creation.
+- `content_format` (markdown / plain_text) tells the editor how to render the content — AI-generated policies use markdown.
+- `tags` array enables policy library filtering by topic in the COM-176 UI.
 - `next_review_date` drives the deadline reminders widget.
 - `is_ai_enhanced` tracks AI involvement for audit purposes.
+- `current_version` is a denormalised int pointing to the latest policy_version — avoids joins for the common "show current policy" case.
 
 | Column           | Type   | Description                                                                                              |
 | ---------------- | ------ | -------------------------------------------------------------------------------------------------------- |
 | policy_id        | STRING | Public ID e.g. `pol_xxx`                                                                                 |
+| tenant_id        | STRING | Which company this policy belongs to                                                                     |
+| title            | STRING | e.g. "Privacy Notice", "Data Processing Agreement"                                                       |
 | type             | ENUM   | privacy_notice / ropa / dpa / cookie_policy / data_retention / incident_response / ai_governance / other |
 | status           | ENUM   | draft / active / under_review / archived                                                                 |
-| regulation_id    | STRING | Which regulation this policy satisfies                                                                   |
+| content_format   | ENUM   | markdown / plain_text                                                                                    |
+| language         | STRING | e.g. "en", "de", "fr"                                                                                    |
+| tags             | ARRAY  | e.g. ["gdpr", "article-13", "privacy"]                                                                   |
+| regulation_id    | UUID   | Which regulation this policy satisfies (nullable)                                                        |
+| assessment_id    | UUID   | Assessment that triggered this policy (nullable)                                                         |
 | related_article  | STRING | e.g. "Article 13"                                                                                        |
 | current_version  | INT    | Points to latest version number                                                                          |
+| content          | TEXT   | Denormalised current version content for fast reads                                                      |
 | is_ai_enhanced   | BOOL   | Whether AI was used to generate/improve                                                                  |
 | next_review_date | DATE   | When this policy needs reviewing                                                                         |
 | approved_by      | STRING | user_id who approved this policy                                                                         |
 
 ---
 
-### 12. policy_versions
+### 13. policy_versions
 
 **Purpose:** Full version history of every policy. Auditors can see exactly what a policy said on any given date.
 
@@ -635,21 +770,25 @@ erDiagram
 
 - Each version has its own approval record — the system knows which version was last formally approved.
 - `change_type` categorises the reason for the new version.
+- `content_format` mirrors the parent policy format — stored per-version in case format changes over time.
 - Documents table links to `policy_version_id` — generated PDFs are permanently linked to the exact version they were generated from.
 
-| Column         | Type   | Description                                          |
-| -------------- | ------ | ---------------------------------------------------- |
-| version_id     | STRING | Public ID e.g. `ver_xxx`                             |
-| policy_id      | STRING | Which policy this version belongs to                 |
-| version_number | INT    | Increments with each change                          |
-| content        | TEXT   | Full policy text at this version                     |
-| change_type    | ENUM   | created / edited / ai_enhanced / approved / archived |
-| changed_fields | JSONB  | Which fields changed                                 |
-| approved_by    | STRING | user_id who approved this version                    |
+| Column         | Type   | Description                                                        |
+| -------------- | ------ | ------------------------------------------------------------------ |
+| version_id     | STRING | Public ID e.g. `ver_xxx`                                           |
+| policy_id      | STRING | Which policy this version belongs to                               |
+| version_number | INT    | Increments with each change                                        |
+| content_format | ENUM   | markdown / plain_text                                              |
+| content        | TEXT   | Full policy text at this version                                   |
+| change_type    | ENUM   | created / edited / ai_enhanced / approved / archived               |
+| change_summary | TEXT   | Human-readable summary of what changed                             |
+| changed_fields | JSONB  | Which fields changed                                               |
+| is_ai_enhanced | BOOL   | Whether this version was AI-generated or AI-improved               |
+| approved_by    | STRING | user_id who approved this version                                  |
 
 ---
 
-### 13. dsar_requests
+### 14. dsar_requests
 
 **Purpose:** Full lifecycle management of Data Subject Access Requests. Tracks every DSAR from intake to fulfilment with GDPR-compliant deadline enforcement.
 
@@ -675,7 +814,7 @@ erDiagram
 
 ---
 
-### 14. documents
+### 15. documents
 
 **Purpose:** Every generated compliance document — PDFs, DOCX files, Markdown exports. Links back to the exact source (policy version, assessment, or DSAR) it was generated from.
 
@@ -708,28 +847,31 @@ erDiagram
 
 ```
 tenants
-├── users                       (one tenant has many users)
-├── company_profiles            (one tenant has one profile)
-│   └── company_profile_versions (one profile has many versions)
-├── assessments                 (one tenant has many assessments)
-│   └── gaps                    (one assessment has many gaps)
-├── policies                    (one tenant has many policies)
-│   └── policy_versions         (one policy has many versions)
-├── dsar_requests               (one tenant has many DSARs)
-└── documents                   (one tenant has many documents)
+├── users                         (one tenant has many users)
+├── company_profiles              (one tenant has one profile)
+│   └── company_profile_versions  (one profile has many versions)
+├── assessments                   (one tenant has many assessments)
+│   └── gaps                      (one assessment has many gaps)
+├── ropa_entries                  (one tenant has many ROPA entries)
+├── policies                      (one tenant has many policies)
+│   └── policy_versions           (one policy has many versions)
+├── dsar_requests                 (one tenant has many DSARs)
+└── documents                     (one tenant has many documents)
 
 regulations (global — no tenant_id)
-├── regulation_versions         (one regulation has many versions)
-└── rules                       (one regulation has many rules)
-        └── rule_versions       (one rule has many versions)
+├── regulation_versions           (one regulation has many versions)
+├── rules                         (one regulation has many rules)
+│   └── rule_versions             (one rule has many versions)
+└── ropa_entries                  (one regulation has many ROPA entries)
 
 assessments
-└── gaps → rules                (gaps reference the rule that was failed)
+├── gaps → rules                  (gaps reference the rule that was failed)
+└── policies                      (assessment triggers policy creation)
 
 documents
-├── → policy_versions           (generated from a policy version)
-├── → assessments               (generated from an assessment)
-└── → dsar_requests             (generated for a DSAR response)
+├── → policy_versions             (generated from a policy version)
+├── → assessments                 (generated from an assessment)
+└── → dsar_requests               (generated for a DSAR response)
 ```
 
 ---
@@ -738,22 +880,23 @@ documents
 
 All public IDs use nanoid with a prefix for instant identification:
 
-| Prefix | Table                    | Example        |
-| ------ | ------------------------ | -------------- |
-| `ten_` | tenants                  | `ten_4x7k9p2m` |
-| `usr_` | users                    | `usr_9m3kx7p1` |
-| `pro_` | company_profiles         | `pro_2kx7m9p1` |
-| `cpv_` | company_profile_versions | `cpv_3mx9k7p2` |
-| `reg_` | regulations              | `reg_7p2m9k3x` |
-| `rgv_` | regulation_versions      | `rgv_1k9x7m2p` |
-| `rul_` | rules                    | `rul_5m2p9k7x` |
-| `rlv_` | rule_versions            | `rlv_8k3x2m9p` |
-| `ast_` | assessments              | `ast_4p7k2x9m` |
-| `gap_` | gaps                     | `gap_2x9m7k3p` |
-| `pol_` | policies                 | `pol_7m3k9x2p` |
-| `ver_` | policy_versions          | `ver_9k2p7m3x` |
-| `dsr_` | dsar_requests            | `dsr_3p9x2k7m` |
-| `doc_` | documents                | `doc_6m7k3x9p` |
+| Prefix  | Table                    | Example         |
+| ------- | ------------------------ | --------------- |
+| `ten_`  | tenants                  | `ten_4x7k9p2m`  |
+| `usr_`  | users                    | `usr_9m3kx7p1`  |
+| `cp_`   | company_profiles         | `cp_2kx7m9p1`   |
+| `cpv_`  | company_profile_versions | `cpv_3mx9k7p2`  |
+| `reg_`  | regulations              | `reg_7p2m9k3x`  |
+| `rgv_`  | regulation_versions      | `rgv_1k9x7m2p`  |
+| `rul_`  | rules                    | `rul_5m2p9k7x`  |
+| `rlv_`  | rule_versions            | `rlv_8k3x2m9p`  |
+| `asm_`  | assessments              | `asm_4p7k2x9m`  |
+| `gap_`  | gaps                     | `gap_2x9m7k3p`  |
+| `rop_`  | ropa_entries             | `rop_7k3x2m9p`  |
+| `pol_`  | policies                 | `pol_7m3k9x2p`  |
+| `ver_`  | policy_versions          | `ver_9k2p7m3x`  |
+| `dsr_`  | dsar_requests            | `dsr_3p9x2k7m`  |
+| `doc_`  | documents                | `doc_6m7k3x9p`  |
 
 Raw UUIDs are never exposed in API responses. All external references use these prefixed IDs.
 
@@ -764,3 +907,25 @@ Raw UUIDs are never exposed in API responses. All external references use these 
 Every table with tenant data has a `tenant_id` column. PostgreSQL Row Level Security (RLS) policies enforce isolation at the database layer — not just the application layer. Even if application code has a bug that fetches the wrong data, the database will return zero rows.
 
 The only tables without `tenant_id` are global reference tables: `regulations`, `regulation_versions`, `rules`, `rule_versions`. These are shared across all tenants and are read-only for tenants.
+
+---
+
+## Built Status
+
+| Table                    | Status | Ticket      |
+| ------------------------ | ------ | ----------- |
+| tenants                  | ✅ Built | Sprint 0   |
+| users                    | ✅ Built | Sprint 0   |
+| company_profiles         | ✅ Built | Sprint 1   |
+| company_profile_versions | ✅ Built | Sprint 1   |
+| regulations              | ✅ Built | COM-157    |
+| regulation_versions      | ✅ Built | COM-157    |
+| rules                    | ✅ Built | COM-157    |
+| rule_versions            | ✅ Built | COM-157    |
+| assessments              | ✅ Built | COM-162    |
+| gaps                     | ✅ Built | COM-162    |
+| ropa_entries             | ✅ Built | COM-171    |
+| policies                 | 🔲 Migration | COM-174 |
+| policy_versions          | 🔲 Migration | COM-174 |
+| dsar_requests            | 🔲 Migration | COM-182 |
+| documents                | 🔲 Not started | COM-177+ |
