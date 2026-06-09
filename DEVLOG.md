@@ -2333,3 +2333,38 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `packages/common/alembic/versions/a6d7c5a15e41_add_policies_and_policy_versions_tables.py` ← new
 - `.claude/hooks/block-migration-edit.sh` — updated to use git log check
 - `docs/SCHEMA.md` — full rewrite: added ropa_entries, fixed pro_→cp_ and ast_→asm_ prefix errors, added 3 new policy fields, updated ER diagram
+
+---
+
+## COM-175 — Policy generator (AI drafts from gaps + profile)
+
+**Date:** 2026-06-10
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- `policy_templates.py` — mandatory section structures per `PolicyType` (privacy_notice, dpa, cookie_policy, data_retention, incident_response, ai_governance), based on GDPR Art. 13/14/28/33/34, NIS2 Art. 20/21, EU AI Act Art. 9/13
+- `PolicyGenerator` engine — builds an AI prompt from selected gaps + company profile, calls Azure OpenAI, returns Markdown; falls back to a stub document with `[TO BE COMPLETED]` placeholders when AI is unavailable or errors
+- `POST /api/v1/policies/generate` — user selects `policy_type` + `gap_ids` (min 1); creates or updates the tenant's `Policy` row for that type and always appends a new `PolicyVersion`
+- `GET /api/v1/policies` — list all policies for the tenant
+- `GET /api/v1/policies/{policy_id}` — policy detail + version history
+- 10 new tests covering generate (new policy, regenerate/version bump, invalid type, empty gaps, no matching gaps, missing profile), list, and get
+
+### Key Decisions
+
+- One `Policy` row per `(tenant_id, type)` — regenerating bumps `current_version` and appends a `PolicyVersion`, never creates a duplicate policy
+- `gap_ids` selection drives both the AI prompt content and `PolicyVersion.changed_fields.source_gap_ids` for traceability
+- Stub fallback (not a 503) keeps the UI usable when Azure OpenAI is unconfigured — output is a fully-sectioned Markdown doc with `[TO BE COMPLETED]` placeholders
+
+### Gotchas
+
+- Found and fixed a pre-existing bug in `packages/common/common/ai/client.py`: `@lru_cache(maxsize=1)` on `get_async_client`/`get_sync_client` raised `TypeError: unhashable type` because pydantic `BaseSettings` isn't hashable. This silently broke ALL Azure OpenAI calls (COM-188 was marked "done in code" but never actually worked). Removed both decorators — now correctly raises `APIConnectionError` (real network error) when `.env` has placeholder Azure credentials, which the generator catches and falls back to the stub.
+
+### Files Changed
+
+- `services/policy-engine/app/engine/policy_templates.py` ← new
+- `services/policy-engine/app/engine/policy_generator.py` ← new
+- `services/policy-engine/app/routers/policies.py` ← new
+- `services/policy-engine/app/main.py` — registered policies router
+- `services/policy-engine/tests/test_policies.py` ← new
+- `packages/common/common/ai/client.py` — removed `@lru_cache` from `get_async_client`/`get_sync_client`
