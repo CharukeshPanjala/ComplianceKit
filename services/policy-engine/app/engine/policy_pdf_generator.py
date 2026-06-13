@@ -90,9 +90,10 @@ def _render_table(block: MdTable, s: dict[str, ParagraphStyle]) -> Table:
     return table
 
 
-# ── Main export function ──────────────────────────────────────────────────────
+# ── Generic markdown renderer ─────────────────────────────────────────────────
 
-def generate_policy_pdf(policy: Policy) -> bytes:
+def render_markdown_pdf(title: str, subtitle: str, content: str) -> bytes:
+    """Render a title, subtitle and Markdown body as a branded PDF."""
     buffer = io.BytesIO()
     s = _styles()
 
@@ -106,20 +107,11 @@ def generate_policy_pdf(policy: Policy) -> bytes:
     )
 
     elements = []
-
-    status_label = policy.status.value.replace("_", " ").title() if policy.status else "Draft"
-    title = policy.title or "Policy"
-    if policy.tenant_name:
-        title = f"{title} — {policy.tenant_name}"
     elements.append(Paragraph(escape(title), s["title"]))
-    elements.append(Paragraph(
-        f"Generated {date.today().strftime('%d %B %Y')}  ·  "
-        f"Version {policy.current_version}  ·  {escape(status_label)}",
-        s["subtitle"],
-    ))
+    elements.append(Paragraph(escape(subtitle), s["subtitle"]))
     elements.append(Spacer(1, 6 * mm))
 
-    blocks = parse_markdown(policy.content or "")
+    blocks = parse_markdown(content or "")
     skipped_h1 = False
     ordered_counter = 0
 
@@ -147,7 +139,21 @@ def generate_policy_pdf(policy: Policy) -> bytes:
             elements.append(Spacer(1, 4 * mm))
 
     if not blocks:
-        elements.append(Paragraph("This policy has no content yet.", s["body"]))
+        elements.append(Paragraph("This document has no content yet.", s["body"]))
 
     doc.build(elements)
     return buffer.getvalue()
+
+
+# ── Main export function ──────────────────────────────────────────────────────
+
+def generate_policy_pdf(policy: Policy) -> bytes:
+    status_label = policy.status.value.replace("_", " ").title() if policy.status else "Draft"
+    title = policy.title or "Policy"
+    if policy.tenant_name:
+        title = f"{title} — {policy.tenant_name}"
+    subtitle = (
+        f"Generated {date.today().strftime('%d %B %Y')}  ·  "
+        f"Version {policy.current_version}  ·  {status_label}"
+    )
+    return render_markdown_pdf(title, subtitle, policy.content or "")

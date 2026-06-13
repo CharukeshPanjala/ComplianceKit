@@ -63,29 +63,22 @@ def _render_table(doc: Document, block: MdTable) -> None:
             _add_spans(cells[idx].paragraphs[0], cell_spans)
 
 
-# ── Main export function ──────────────────────────────────────────────────────
+# ── Generic markdown renderer ─────────────────────────────────────────────────
 
-def generate_policy_docx(policy: Policy) -> bytes:
+def render_markdown_docx(title: str, subtitle: str, content: str) -> bytes:
+    """Render a title, subtitle and Markdown body as a Word document."""
     doc = Document()
-
-    status_label = policy.status.value.replace("_", " ").title() if policy.status else "Draft"
-    title = policy.title or "Policy"
-    if policy.tenant_name:
-        title = f"{title} — {policy.tenant_name}"
 
     title_para = doc.add_heading("", level=0)
     title_run = title_para.add_run(title)
     title_run.font.color.rgb = NAVY
 
     subtitle_para = doc.add_paragraph()
-    subtitle_run = subtitle_para.add_run(
-        f"Generated {date.today().strftime('%d %B %Y')}  ·  "
-        f"Version {policy.current_version}  ·  {status_label}"
-    )
+    subtitle_run = subtitle_para.add_run(subtitle)
     subtitle_run.font.size = Pt(9)
     subtitle_run.font.color.rgb = TEXT_GRAY
 
-    blocks = parse_markdown(policy.content or "")
+    blocks = parse_markdown(content or "")
     skipped_h1 = False
 
     for block in blocks:
@@ -105,8 +98,22 @@ def generate_policy_docx(policy: Policy) -> bytes:
             doc.add_paragraph()
 
     if not blocks:
-        doc.add_paragraph("This policy has no content yet.")
+        doc.add_paragraph("This document has no content yet.")
 
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
+
+
+# ── Main export function ──────────────────────────────────────────────────────
+
+def generate_policy_docx(policy: Policy) -> bytes:
+    status_label = policy.status.value.replace("_", " ").title() if policy.status else "Draft"
+    title = policy.title or "Policy"
+    if policy.tenant_name:
+        title = f"{title} — {policy.tenant_name}"
+    subtitle = (
+        f"Generated {date.today().strftime('%d %B %Y')}  ·  "
+        f"Version {policy.current_version}  ·  {status_label}"
+    )
+    return render_markdown_docx(title, subtitle, policy.content or "")

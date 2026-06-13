@@ -2427,3 +2427,43 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `frontend/src/app/(portal)/dashboard/_components/GapDetailModal.tsx` — "Generate Policy" button + `regulation` prop
 - `frontend/src/app/(portal)/dashboard/_components/DashboardContent.tsx` — pass `regulation` to GapDetailModal
 - `frontend/package.json`, `pnpm-lock.yaml` — added react-markdown, remark-gfm
+
+---
+
+## COM-177 — PDF compliance report (one-click export)
+
+**Date:** 2026-06-13
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Refactored `policy_pdf_generator.py` / `policy_docx_generator.py` — extracted generic `render_markdown_pdf(title, subtitle, content)` / `render_markdown_docx(title, subtitle, content)` from `generate_policy_pdf`/`generate_policy_docx`, which are now thin wrappers around them
+- `compliance_report_generator.py` — `ComplianceReportGenerator`: builds the report from all three regulations' latest assessments + gaps + the company profile; `generate_executive_summary()` (Azure OpenAI with stub fallback, same AI/stub pattern as `PolicyGenerator`), `build_report_markdown()` assembles Executive Summary, Regulation Breakdown table, a Gap Analysis table per regulation (all applicable gaps including "met"), Remediation Roadmap (outstanding gaps grouped critical→high→medium→low), Profile Summary
+- `GET /api/v1/reports/compliance?format=pdf|docx` — one-click full compliance report combining all regulations; 404 if no company profile, 422 if zero regulations have a completed assessment yet; overall score = average of the *completed* regulations' scores
+- 21 new tests in `test_reports.py` (executive summary stub/AI/fallback paths, markdown assembly per section, endpoint pdf/docx/422/404/partial-report/invalid-format) — 283 policy-engine tests passing
+- Frontend: `reportsApi.ts` (blob download + `ReportApiError` surfacing the 422 detail), `useReports.ts` (`useDownloadComplianceReport`), dashboard overview — new "Compliance Report" header with Download PDF / Download DOCX buttons and an inline error message on failure
+
+### Key Decisions
+
+- Partial reports allowed — overall score is the average of *completed* assessments only; 422 only when there are zero completed assessments across all three regulations
+- Gap analysis tables include every applicable gap (including "met") for a full audit-style report; the Remediation Roadmap section still filters down to outstanding items only
+- Executive summary reuses the COM-175 AI/stub pattern — Azure OpenAI when configured, falls back to a templated 3-paragraph summary on any error or when AI is disabled
+
+### Gotchas
+
+- None new — the PDF/DOCX generator refactor was verified against the existing `test_policy_export.py` (14 passed, no regressions) before adding report-specific code
+- DOCX table cell text lives in `doc.tables`, not `doc.paragraphs` — caught in `test_reports.py` when asserting on the Regulation Breakdown table
+
+### Files Changed
+
+- `services/policy-engine/app/engine/policy_pdf_generator.py` — extracted `render_markdown_pdf`
+- `services/policy-engine/app/engine/policy_docx_generator.py` — extracted `render_markdown_docx`
+- `services/policy-engine/app/engine/compliance_report_generator.py` ← new
+- `services/policy-engine/app/routers/reports.py` ← new
+- `services/policy-engine/app/main.py` — registered reports router
+- `services/policy-engine/tests/test_reports.py` ← new
+- `frontend/src/lib/reportsApi.ts` ← new
+- `frontend/src/lib/hooks/useReports.ts` ← new
+- `frontend/src/app/(portal)/dashboard/_components/DashboardContent.tsx` — "Compliance Report" header with download buttons
+
+**This closes Sprint 3.**
