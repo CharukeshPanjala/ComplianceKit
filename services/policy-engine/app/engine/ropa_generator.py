@@ -1,13 +1,9 @@
 # WHAT: ROPA generator engine | CHANGE: new file | WHY: COM-172 — auto-build draft RopaEntry objects from company profile
-import uuid
 from dataclasses import dataclass
 
 from common.models.ropa import (
-    RopaEntry,
     RopaDataRole,
     RopaLegalBasis,
-    RopaSource,
-    RopaStatus,
     SpecialCategoryCondition,
     TransferMechanism,
 )

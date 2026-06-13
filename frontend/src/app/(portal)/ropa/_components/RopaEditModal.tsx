@@ -101,13 +101,13 @@ export const RopaEditModal = ({ entry, onSave, onStatusChange, onClose, isSaving
         <textarea
           className={styles.textarea}
           rows={2}
-          value={(form as Record<string, string>)[field] ?? ""}
+          value={(form as unknown as Record<string, string>)[field] ?? ""}
           onChange={(e) => handleField(field, e.target.value)}
         />
       ) : (
         <input
           className={styles.input}
-          value={(form as Record<string, string>)[field] ?? ""}
+          value={(form as unknown as Record<string, string>)[field] ?? ""}
           onChange={(e) => handleField(field, e.target.value)}
         />
       )}
@@ -119,7 +119,7 @@ export const RopaEditModal = ({ entry, onSave, onStatusChange, onClose, isSaving
       <label className={styles.label}>{label}</label>
       <select
         className={styles.select}
-        value={(form as Record<string, string>)[field] ?? ""}
+        value={(form as unknown as Record<string, string>)[field] ?? ""}
         onChange={(e) => handleField(field, e.target.value)}
       >
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -132,7 +132,7 @@ export const RopaEditModal = ({ entry, onSave, onStatusChange, onClose, isSaving
       <input
         type="checkbox"
         className={styles.check}
-        checked={(form as Record<string, boolean>)[field] ?? false}
+        checked={(form as unknown as Record<string, boolean>)[field] ?? false}
         onChange={(e) => handleField(field, e.target.checked)}
       />
       <span className={styles.checkLabel}>{label}</span>

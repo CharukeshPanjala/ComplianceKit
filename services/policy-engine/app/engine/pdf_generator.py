@@ -7,7 +7,6 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 from common.models.ropa import RopaEntry
 
@@ -24,7 +23,7 @@ TEXT_GRAY = colors.HexColor("#374151")
 # ── Styles ────────────────────────────────────────────────────────────────────
 
 def _styles():
-    base = getSampleStyleSheet()
+    getSampleStyleSheet()
     return {
         "title": ParagraphStyle("title", fontSize=18, textColor=NAVY, spaceAfter=4, fontName="Helvetica-Bold"),
         "subtitle": ParagraphStyle("subtitle", fontSize=10, textColor=TEXT_GRAY, spaceAfter=2),

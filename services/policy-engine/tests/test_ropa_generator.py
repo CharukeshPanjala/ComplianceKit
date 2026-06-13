@@ -1,5 +1,4 @@
 # WHAT: Unit tests for RopaGenerator engine | CHANGE: new file | WHY: COM-172 — verify generator logic
-import pytest
 from app.engine.ropa_generator import RopaGenerator
 from common.models.ropa import RopaDataRole, RopaLegalBasis, TransferMechanism, SpecialCategoryCondition
 
