@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from openai import AsyncAzureOpenAI, AzureOpenAI
@@ -9,7 +8,6 @@ if TYPE_CHECKING:
     from common.config import AIServiceSettings
 
 
-@lru_cache(maxsize=1)
 def get_async_client(settings: AIServiceSettings) -> AsyncAzureOpenAI:
     """
     Async Azure OpenAI client — use in FastAPI endpoints and background tasks.
@@ -28,7 +26,6 @@ def get_async_client(settings: AIServiceSettings) -> AsyncAzureOpenAI:
     )
 
 
-@lru_cache(maxsize=1)
 def get_sync_client(settings: AIServiceSettings) -> AzureOpenAI:
     """
     Sync Azure OpenAI client — use in CLI scripts and seeders (COM-158/159/160/187).

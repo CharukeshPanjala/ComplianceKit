@@ -49,7 +49,6 @@ const NAV_ITEMS = [
         />
       </svg>
     ),
-    comingSoon: true,
   },
   {
     href: "/policies",
@@ -64,7 +63,6 @@ const NAV_ITEMS = [
         />
       </svg>
     ),
-    comingSoon: true,
   },
   {
     href: "/breach",

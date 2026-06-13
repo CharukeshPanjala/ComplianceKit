@@ -26,3 +26,12 @@ def generate_assessment_id() -> str:
 
 def generate_gap_id() -> str:
     return f"gap_{generate(size=8)}"
+
+def generate_ropa_id() -> str:
+    return f"rop_{generate(size=8)}"
+
+def generate_policy_id() -> str:
+    return f"pol_{generate(size=8)}"
+
+def generate_policy_version_id() -> str:
+    return f"ver_{generate(size=8)}"

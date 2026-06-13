@@ -11,6 +11,8 @@ import { RemediationRoadmap } from "./RemediationRoadmap";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { useGaps } from "@/lib/hooks/useGaps";
 import { useAssessmentStats } from "@/lib/hooks/useAssessmentStats";
+import { useDownloadComplianceReport } from "@/lib/hooks/useReports";
+import type { ReportFormat } from "@/lib/reportsApi";
 import type { Profile } from "@/types/profile";
 import type { RegulationName } from "@/types/assessment";
 
@@ -37,6 +39,13 @@ const styles = {
   widgetGrid: "grid grid-cols-1 lg:grid-cols-3 gap-6",
   widgetLeft: "lg:col-span-2 space-y-6",
   widgetRight: "space-y-6",
+  reportHeader: "flex items-start justify-between gap-4 flex-wrap",
+  reportTitle: "text-lg font-bold text-gray-900",
+  reportSubtitle: "text-sm text-gray-500 mt-0.5",
+  reportActions: "flex items-center gap-2 flex-shrink-0",
+  reportBtn:
+    "px-3 py-2 text-sm font-medium border border-gray-200 rounded-xl text-gray-700 hover:border-[#0F2044] transition-colors disabled:opacity-50",
+  reportError: "text-sm text-red-500 w-full",
 };
 
 // ── Sub-components ────────────────────────────────────────
@@ -100,7 +109,13 @@ export const DashboardContent = ({ profile }: DashboardContentProps) => {
   const [selectedAssessment, setSelectedAssessment] = useState<SelectedAssessment | null>(null);
   const [selectedGapId, setSelectedGapId] = useState<string | null>(null);
 
+  const downloadReport = useDownloadComplianceReport();
+
   // ── Handlers ─────────────────────────────────────────
+
+  const handleDownloadReport = (format: ReportFormat) => {
+    downloadReport.mutate(format);
+  };
 
   const handleViewGaps = (assessmentId: string, regulation: RegulationName) => {
     setSelectedAssessment({ id: assessmentId, regulation });
@@ -121,8 +136,39 @@ export const DashboardContent = ({ profile }: DashboardContentProps) => {
 
   // ── Render helpers ────────────────────────────────────
 
+  const renderReportHeader = () => (
+    <div className={styles.reportHeader}>
+      <div>
+        <h2 className={styles.reportTitle}>Compliance Report</h2>
+        <p className={styles.reportSubtitle}>
+          Export an audit-ready report covering all regulations, gaps and remediation steps
+        </p>
+      </div>
+      <div className={styles.reportActions}>
+        <button
+          className={styles.reportBtn}
+          onClick={() => handleDownloadReport("pdf")}
+          disabled={downloadReport.isPending}
+        >
+          {downloadReport.isPending && downloadReport.variables === "pdf" ? "Generating…" : "Download PDF"}
+        </button>
+        <button
+          className={styles.reportBtn}
+          onClick={() => handleDownloadReport("docx")}
+          disabled={downloadReport.isPending}
+        >
+          {downloadReport.isPending && downloadReport.variables === "docx" ? "Generating…" : "Download DOCX"}
+        </button>
+      </div>
+      {downloadReport.isError && (
+        <p className={styles.reportError}>{downloadReport.error?.message ?? "Failed to generate report."}</p>
+      )}
+    </div>
+  );
+
   const renderOverview = () => (
     <>
+      {renderReportHeader()}
       <AssessmentSection
         profile={{
           nis2_data: profile.nis2_data,
@@ -154,6 +200,7 @@ export const DashboardContent = ({ profile }: DashboardContentProps) => {
       <GapDetailModal
         gapId={selectedGapId}
         assessmentId={selectedAssessment.id}
+        regulation={selectedAssessment.regulation}
         isOpen={!!selectedGapId}
         onClose={handleModalClose}
       />

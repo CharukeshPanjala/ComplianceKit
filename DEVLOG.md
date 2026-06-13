@@ -2182,3 +2182,288 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `services/policy-engine/app/main.py` — CORS middleware
 - `services/policy-engine/app/routers/assessments.py` — latest endpoint fix + gap resolve + history + stats endpoints
 - `services/policy-engine/app/workers/assessment.py` — populate title/plain_english/remediation_hint
+
+---
+
+## COM-171 — ropa_entries Table + RLS
+
+**Date:** 2026-06-06
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Designed `ropa_entries` schema covering full GDPR Art. 30 requirements (34 columns)
+- Created `RopaEntry` SQLAlchemy model with 4 enums: `RopaLegalBasis`, `RopaStatus`, `RopaSource`, `RopaDataRole`
+- Added `generate_ropa_id()` to ids.py (`rop_` prefix)
+- Migration `44f5e10e6092` — creates table, 6 indexes, RLS (enable + force + tenant_isolation policy)
+- Updated CLAUDE.md with correct local migration workflow (rule 15)
+
+### Key Decisions
+
+- **Option B chosen** — dedicated `ropa_entries` table, not reusing `policies` table. ROPA under Art. 30 is a register of individual processing activities; a flat table makes the editable UI and PDF generation cleaner
+- **34 columns for long-term completeness** — includes Art. 22 (automated decisions), Art. 35 (DPIA), Art. 9 (special categories), review/approval lifecycle, legal basis documentation fields. All nullable — no migration cost later
+- **`regulation_id` FK** — links each entry to a regulation (defaults GDPR, future-proofs for NIS2/AI Act)
+- **`source_profile_id` FK** — links auto-generated entries back to the company profile they were built from
+- **Deferred:** `joint_controllers` JSONB, `ropa_entry_versions` audit table, processor FK to future `processors` table (COM-180)
+- **`documents` table note** — will need a `ropa_id` FK column added in COM-173 migration when ROPA PDF export is built
+
+### Migration Workflow Learned
+
+- `DATABASE_URL` in `.env` uses Docker internal hostname (`compliancekit-postgres`) — must override to `localhost` when running alembic locally
+- Correct order: write model → autogenerate locally with `DATABASE_URL=... uv run alembic revision --autogenerate` → edit (remove GIN/IVFFlat drops, add RLS) → apply with `DATABASE_URL=... uv run alembic upgrade head` → `make rebuild-api`
+
+### Files Changed
+
+- `packages/common/common/utils/ids.py` — added `generate_ropa_id`
+- `packages/common/common/models/ropa.py` ← new
+- `packages/common/common/models/__init__.py` — exported `RopaEntry`
+- `packages/common/alembic/versions/44f5e10e6092_add_ropa_entries_table.py` ← new
+- `CLAUDE.md` — rule 15 (migration workflow) + ticket workflow updated
+
+## COM-172 — ROPA Generator
+
+**Date:** 2026-06-09
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Added two new enums to `ropa.py`: `TransferMechanism` (5 values: scc, bcr, adequacy_decision, derogation, none) and `SpecialCategoryCondition` (10 Art. 9(2) conditions)
+- Added two nullable columns to `ropa_entries`: `transfer_mechanism` and `special_category_condition`
+- Migration `653d73ea41c8` — adds both columns + creates PostgreSQL enum types explicitly before `add_column`
+- Pure Python `RopaGenerator` engine in `policy-engine/app/engine/ropa_generator.py` — maps processing purposes to `GeneratedEntry` dataclasses with full GDPR field resolution
+- 14 known purpose slugs mapped (marketing, analytics, hr_management, etc.) with per-activity legal basis defaults
+- `POST /api/v1/ropa/generate` — idempotent, deletes AUTO_GENERATED entries and regenerates from current profile
+- `GET /api/v1/ropa` — lists all entries for the tenant
+- 16 unit tests, all passing
+
+### Key Decisions
+
+- **Policy-engine owns ROPA endpoints** — same pattern as assessments. Frontend calls policy-engine directly at POLICY_BASE (port 8001)
+- **Synchronous generation** — no ARQ worker needed. Pure Python, <1ms, no reason to async queue it
+- **Idempotent generate** — deletes AUTO_GENERATED, preserves MANUAL entries. Safe to re-run after profile changes
+- **Default transfer mechanism = SCC** — most common for EEA→outside transfers. User edits in COM-173 UI
+- **Default special category condition = explicit_consent** — safest starting point per Art. 9(2)(a). User edits in COM-173 UI
+- **DPIA flag logic** — requires both special category data AND large scale (over_100k or under_100k subjects). Intentionally conservative
+
+### Gotchas
+
+- `sa.Enum(..., name='...')` in `add_column` does NOT auto-create the PostgreSQL type — must `CREATE TYPE` explicitly in migration before `add_column`. This only affects adding enum columns to existing tables; `create_table` handles it automatically
+- The migration hook blocks all edits to files under `alembic/versions/` regardless of whether they've been applied. Freshly generated unrun migrations can be edited (rule 6 updated in CLAUDE.md)
+
+### Files Changed
+
+- `packages/common/common/models/ropa.py` — added `TransferMechanism`, `SpecialCategoryCondition` enums + columns
+- `packages/common/alembic/versions/653d73ea41c8_add_transfer_mechanism_and_special_.py` ← new
+- `services/policy-engine/app/engine/ropa_generator.py` ← new
+- `services/policy-engine/app/routers/ropa.py` ← new
+- `services/policy-engine/app/main.py` — added ropa router
+- `services/policy-engine/tests/test_ropa_generator.py` ← new
+- `CLAUDE.md` — rules 6, 12, 13 updated/added
+
+## COM-173 — ROPA API + Editable UI + PDF Export
+
+**Date:** 2026-06-09
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Full CRUD API in policy-engine: `POST /api/v1/ropa`, `GET /api/v1/ropa/{id}`, `PATCH /api/v1/ropa/{id}`, `DELETE /api/v1/ropa/{id}`, `PATCH /api/v1/ropa/{id}/status`
+- `GET /api/v1/ropa/export/pdf` — Art. 30 register as A4 landscape PDF via reportlab
+- `pdf_generator.py` — navy/amber branded table PDF with legal basis labels, DPIA flags
+- `ropaApi.ts` — typed API client for all ROPA endpoints including PDF download trigger
+- `useRopa.ts` — TanStack Query hooks: list, generate, create, update, status, delete, export
+- `/ropa` page — loading/error/empty states, full table with edit modal
+- `RopaTable.tsx` — sortable table, status badges, DPIA tag, edit + delete per row, regenerate + export PDF buttons
+- `RopaEditModal.tsx` — full edit form: activity, legal basis, retention, transfers, special category condition, DPIA
+- `RopaEmptyState.tsx` — generate-from-profile CTA
+- Removed `comingSoon: true` from ROPA sidebar entry
+
+### Key Decisions
+
+- `reportlab` chosen over `weasyprint` — pure Python, no system deps, sufficient for tabular PDF
+- `/export/pdf` route defined before `/{ropa_id}` in the router — avoids FastAPI treating "export" as a ropa_id path param
+- PDF export triggers browser download via `URL.createObjectURL` — no server-side file storage needed
+- Status change handled via dedicated `PATCH /{id}/status` rather than generic PATCH — cleaner intent
+
+### Files Changed
+
+- `services/policy-engine/pyproject.toml` — added reportlab
+- `services/policy-engine/app/engine/pdf_generator.py` ← new
+- `services/policy-engine/app/routers/ropa.py` — full CRUD + PDF
+- `frontend/src/lib/ropaApi.ts` ← new
+- `frontend/src/lib/hooks/useRopa.ts` ← new
+- `frontend/src/app/(portal)/ropa/page.tsx` ← new
+- `frontend/src/app/(portal)/ropa/_components/RopaTable.tsx` ← new
+- `frontend/src/app/(portal)/ropa/_components/RopaEditModal.tsx` ← new
+- `frontend/src/app/(portal)/ropa/_components/RopaEmptyState.tsx` ← new
+- `frontend/src/app/(portal)/_components/Sidebar.tsx` — removed comingSoon from ROPA
+
+---
+
+## COM-174 — policies + policy_versions tables + RLS
+
+**Date:** 2026-06-10
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- `Policy` SQLAlchemy model (`policies` table) — title, type, status, content_format, tags, regulation_id, assessment_id, RLS
+- `PolicyVersion` SQLAlchemy model (`policy_versions` table) — version history with change_type, content_format, is_ai_enhanced, RLS
+- `PolicyType`, `PolicyStatus`, `PolicyContentFormat`, `PolicyChangeType` enums
+- `generate_policy_id()` (`pol_` prefix) + `generate_policy_version_id()` (`ver_` prefix) in `ids.py`
+- Migration `a6d7c5a15e41` — creates both tables with RLS policies, all indexes
+- Both models registered in `common/models/__init__.py`
+
+### Key Decisions
+
+- `content_format` (markdown/plain_text) stored per-policy and per-version — AI-generated policies use markdown
+- `tags` as PostgreSQL ARRAY(Text) — enables policy library filtering without a junction table
+- `assessment_id` FK to assessments — tracks which assessment triggered this policy
+- `policy_id` (String, not UUID) FK in `policy_versions` — joins on prefixed public ID for consistency with rest of schema
+
+### Gotchas
+
+- Migration hook was blocking edits to freshly generated (unapplied) migrations — updated hook to only block committed files via `git log -- "$file"`
+
+### Files Changed
+
+- `packages/common/common/models/policy.py` ← new
+- `packages/common/common/models/__init__.py` — added Policy, PolicyVersion imports
+- `packages/common/common/utils/ids.py` — added generate_policy_id, generate_policy_version_id
+- `packages/common/alembic/versions/a6d7c5a15e41_add_policies_and_policy_versions_tables.py` ← new
+- `.claude/hooks/block-migration-edit.sh` — updated to use git log check
+- `docs/SCHEMA.md` — full rewrite: added ropa_entries, fixed pro_→cp_ and ast_→asm_ prefix errors, added 3 new policy fields, updated ER diagram
+
+---
+
+## COM-175 — Policy generator (AI drafts from gaps + profile)
+
+**Date:** 2026-06-10
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- `policy_templates.py` — mandatory section structures per `PolicyType` (privacy_notice, dpa, cookie_policy, data_retention, incident_response, ai_governance), based on GDPR Art. 13/14/28/33/34, NIS2 Art. 20/21, EU AI Act Art. 9/13
+- `PolicyGenerator` engine — builds an AI prompt from selected gaps + company profile, calls Azure OpenAI, returns Markdown; falls back to a stub document with `[TO BE COMPLETED]` placeholders when AI is unavailable or errors
+- `POST /api/v1/policies/generate` — user selects `policy_type` + `gap_ids` (min 1); creates or updates the tenant's `Policy` row for that type and always appends a new `PolicyVersion`
+- `GET /api/v1/policies` — list all policies for the tenant
+- `GET /api/v1/policies/{policy_id}` — policy detail + version history
+- 10 new tests covering generate (new policy, regenerate/version bump, invalid type, empty gaps, no matching gaps, missing profile), list, and get
+
+### Key Decisions
+
+- One `Policy` row per `(tenant_id, type)` — regenerating bumps `current_version` and appends a `PolicyVersion`, never creates a duplicate policy
+- `gap_ids` selection drives both the AI prompt content and `PolicyVersion.changed_fields.source_gap_ids` for traceability
+- Stub fallback (not a 503) keeps the UI usable when Azure OpenAI is unconfigured — output is a fully-sectioned Markdown doc with `[TO BE COMPLETED]` placeholders
+
+### Gotchas
+
+- Found and fixed a pre-existing bug in `packages/common/common/ai/client.py`: `@lru_cache(maxsize=1)` on `get_async_client`/`get_sync_client` raised `TypeError: unhashable type` because pydantic `BaseSettings` isn't hashable. This silently broke ALL Azure OpenAI calls (COM-188 was marked "done in code" but never actually worked). Removed both decorators — now correctly raises `APIConnectionError` (real network error) when `.env` has placeholder Azure credentials, which the generator catches and falls back to the stub.
+
+### Files Changed
+
+- `services/policy-engine/app/engine/policy_templates.py` ← new
+- `services/policy-engine/app/engine/policy_generator.py` ← new
+- `services/policy-engine/app/routers/policies.py` ← new
+- `services/policy-engine/app/main.py` — registered policies router
+- `services/policy-engine/tests/test_policies.py` ← new
+- `packages/common/common/ai/client.py` — removed `@lru_cache` from `get_async_client`/`get_sync_client`
+
+---
+
+## COM-176 — Policies API + library UI + DOCX/PDF download
+
+**Date:** 2026-06-13
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- `markdown_blocks.py` — shared Markdown→blocks parser (`Span`, `Heading`, `Paragraph`, `ListItem`, `Table`), feeds both exporters
+- `policy_pdf_generator.py` — reportlab PDF export, same navy/amber branding as the ROPA PDF; skips the redundant top-level H1, renders numbered/bulleted lists and tables
+- `policy_docx_generator.py` — python-docx export, same document structure, shaded table headers
+- `GET /api/v1/policies/{policy_id}/export/pdf` and `/export/docx`
+- `PATCH /api/v1/policies/{policy_id}/status` — hybrid versioning: draft↔under_review just flips `Policy.status`; transitions to active/archived bump `current_version` and append a new `PolicyVersion` (change_type=approved/archived); →active also sets `approved_by`/`approved_at`
+- 23 new policy-engine tests (9 status-transition tests in `test_policies.py`, 14 export/markdown-parser tests in new `test_policy_export.py`) — 262 total passing
+- Frontend: `policiesApi.ts` + `usePolicies.ts` hooks (list, detail, generate, status update, PDF/DOCX download via blob)
+- `/policies` — library grid with status badges + "Generate Policy" modal (policy type select + GDPR/NIS2/EU AI Act regulation tabs, open-gap checklist sourced from `useLatestAssessments`/`useGaps`)
+- `/policies/[id]` — markdown viewer (react-markdown + remark-gfm, custom Tailwind component map), status workflow buttons, version history sidebar, PDF/DOCX export buttons
+- Dashboard `GapDetailModal` — "Generate Policy from this gap" button → `/policies?gap_id=...&regulation=...`, auto-opens the modal pre-filled with that gap checked and the matching regulation tab active
+- Sidebar — `/policies` nav item enabled (removed "Soon" badge)
+
+### Key Decisions
+
+- Shared `markdown_blocks.py` intermediate representation avoids duplicating Markdown parsing between the reportlab and python-docx generators
+- Status endpoint uses a hybrid model — cheap draft↔under_review toggles don't bloat version history; only approval/archival transitions create an auditable `PolicyVersion` snapshot
+- Generate Policy modal sources gaps from all three regulations via tabs (not just the originating gap's regulation) — lets a single policy address gaps across GDPR/NIS2/AI Act
+- No `@tailwindcss/typography` dependency — markdown rendered via a custom `components` map on `react-markdown` to stay within existing Tailwind conventions
+
+### New Dependencies
+
+- `python-docx ^1.2.0` (policy-engine) — DOCX generation
+- `react-markdown ^10.1.0` + `remark-gfm ^4.0.1` (frontend) — policy content rendering
+
+### Gotchas
+
+- Initial PDF generator ordered-list rendering didn't track item numbers (every item rendered as "-") — fixed by resetting an `ordered_counter` whenever a non-ordered-list block is encountered
+- `policy-engine` Docker healthcheck hits `localhost:8000/health` but the service listens on 8001 — pre-existing misconfig (container shows `unhealthy`), `/health` on 8001 returns 200. Not touched, out of scope.
+
+### Files Changed
+
+- `services/policy-engine/app/engine/markdown_blocks.py` ← new
+- `services/policy-engine/app/engine/policy_pdf_generator.py` ← new
+- `services/policy-engine/app/engine/policy_docx_generator.py` ← new
+- `services/policy-engine/app/routers/policies.py` — export + status endpoints, `_serialize` adds approved_by/approved_at
+- `services/policy-engine/tests/test_policies.py` — status transition tests
+- `services/policy-engine/tests/test_policy_export.py` ← new
+- `services/policy-engine/pyproject.toml`, `uv.lock` — added python-docx
+- `frontend/src/lib/policiesApi.ts` ← new
+- `frontend/src/lib/hooks/usePolicies.ts` ← new
+- `frontend/src/app/(portal)/policies/page.tsx` ← new
+- `frontend/src/app/(portal)/policies/_components/PolicyLibrary.tsx` ← new
+- `frontend/src/app/(portal)/policies/_components/GeneratePolicyModal.tsx` ← new
+- `frontend/src/app/(portal)/policies/[id]/page.tsx` ← new
+- `frontend/src/app/(portal)/policies/[id]/_components/PolicyMarkdown.tsx` ← new
+- `frontend/src/app/(portal)/_components/Sidebar.tsx` — enabled `/policies` nav
+- `frontend/src/app/(portal)/dashboard/_components/GapDetailModal.tsx` — "Generate Policy" button + `regulation` prop
+- `frontend/src/app/(portal)/dashboard/_components/DashboardContent.tsx` — pass `regulation` to GapDetailModal
+- `frontend/package.json`, `pnpm-lock.yaml` — added react-markdown, remark-gfm
+
+---
+
+## COM-177 — PDF compliance report (one-click export)
+
+**Date:** 2026-06-13
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- Refactored `policy_pdf_generator.py` / `policy_docx_generator.py` — extracted generic `render_markdown_pdf(title, subtitle, content)` / `render_markdown_docx(title, subtitle, content)` from `generate_policy_pdf`/`generate_policy_docx`, which are now thin wrappers around them
+- `compliance_report_generator.py` — `ComplianceReportGenerator`: builds the report from all three regulations' latest assessments + gaps + the company profile; `generate_executive_summary()` (Azure OpenAI with stub fallback, same AI/stub pattern as `PolicyGenerator`), `build_report_markdown()` assembles Executive Summary, Regulation Breakdown table, a Gap Analysis table per regulation (all applicable gaps including "met"), Remediation Roadmap (outstanding gaps grouped critical→high→medium→low), Profile Summary
+- `GET /api/v1/reports/compliance?format=pdf|docx` — one-click full compliance report combining all regulations; 404 if no company profile, 422 if zero regulations have a completed assessment yet; overall score = average of the *completed* regulations' scores
+- 21 new tests in `test_reports.py` (executive summary stub/AI/fallback paths, markdown assembly per section, endpoint pdf/docx/422/404/partial-report/invalid-format) — 283 policy-engine tests passing
+- Frontend: `reportsApi.ts` (blob download + `ReportApiError` surfacing the 422 detail), `useReports.ts` (`useDownloadComplianceReport`), dashboard overview — new "Compliance Report" header with Download PDF / Download DOCX buttons and an inline error message on failure
+
+### Key Decisions
+
+- Partial reports allowed — overall score is the average of *completed* assessments only; 422 only when there are zero completed assessments across all three regulations
+- Gap analysis tables include every applicable gap (including "met") for a full audit-style report; the Remediation Roadmap section still filters down to outstanding items only
+- Executive summary reuses the COM-175 AI/stub pattern — Azure OpenAI when configured, falls back to a templated 3-paragraph summary on any error or when AI is disabled
+
+### Gotchas
+
+- None new — the PDF/DOCX generator refactor was verified against the existing `test_policy_export.py` (14 passed, no regressions) before adding report-specific code
+- DOCX table cell text lives in `doc.tables`, not `doc.paragraphs` — caught in `test_reports.py` when asserting on the Regulation Breakdown table
+
+### Files Changed
+
+- `services/policy-engine/app/engine/policy_pdf_generator.py` — extracted `render_markdown_pdf`
+- `services/policy-engine/app/engine/policy_docx_generator.py` — extracted `render_markdown_docx`
+- `services/policy-engine/app/engine/compliance_report_generator.py` ← new
+- `services/policy-engine/app/routers/reports.py` ← new
+- `services/policy-engine/app/main.py` — registered reports router
+- `services/policy-engine/tests/test_reports.py` ← new
+- `frontend/src/lib/reportsApi.ts` ← new
+- `frontend/src/lib/hooks/useReports.ts` ← new
+- `frontend/src/app/(portal)/dashboard/_components/DashboardContent.tsx` — "Compliance Report" header with download buttons
+
+**This closes Sprint 3.**

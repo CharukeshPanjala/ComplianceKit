@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/Modal";
 import { GapResolveButton } from "./GapResolveButton";
 import { useGaps } from "@/lib/hooks/useGaps";
-import type { Gap } from "@/types/assessment";
+import type { Gap, RegulationName } from "@/types/assessment";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ const FINE_EXPOSURE = {
 interface GapDetailModalProps {
   gapId: string | null;
   assessmentId: string;
+  regulation: RegulationName;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -55,13 +57,17 @@ const styles = {
     "w-5 h-5 rounded-full bg-navy text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5",
   evidenceBox: "bg-gray-50 rounded-xl p-3 text-xs text-gray-500 font-mono break-all",
   resolveSection: "border-t border-gray-100 pt-4 mt-4",
+  policySection: "border-t border-gray-100 pt-4 mt-4",
+  policyBtn:
+    "w-full py-2 text-sm font-medium text-[#0F2044] border border-[#0F2044]/20 rounded-lg hover:bg-[#0F2044]/5 transition-colors",
   loadingWrapper: "py-8 text-center text-sm text-gray-400",
   notFoundWrapper: "py-8 text-center text-sm text-gray-400",
 };
 
 // ── Component ─────────────────────────────────────────────
 
-export const GapDetailModal = ({ gapId, assessmentId, isOpen, onClose }: GapDetailModalProps) => {
+export const GapDetailModal = ({ gapId, assessmentId, regulation, isOpen, onClose }: GapDetailModalProps) => {
+  const router = useRouter();
   const [notes, setNotes] = useState("");
 
   const { data, isLoading } = useGaps(isOpen ? assessmentId : null);
@@ -72,6 +78,15 @@ export const GapDetailModal = ({ gapId, assessmentId, isOpen, onClose }: GapDeta
   const status = STATUS_CONFIG[gap?.status ?? "unknown"] ?? STATUS_CONFIG.unknown;
   const fineText = gap?.fine_tier ? FINE_EXPOSURE[gap.fine_tier] : null;
   const steps = gap?.remediation_steps?.steps ?? [];
+
+  // ── Handlers ──────────────────────────────────────────
+
+  const handleGeneratePolicy = () => {
+    if (!gap) return;
+    onClose();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    router.push(`/policies?gap_id=${gap.gap_id}&regulation=${regulation}` as any);
+  };
 
   // ── Render helpers ────────────────────────────────────
 
@@ -154,6 +169,17 @@ export const GapDetailModal = ({ gapId, assessmentId, isOpen, onClose }: GapDeta
     );
   };
 
+  const renderGeneratePolicy = () => {
+    if (!gap) return null;
+    return (
+      <div className={styles.policySection}>
+        <button className={styles.policyBtn} onClick={handleGeneratePolicy}>
+          Generate Policy from this gap
+        </button>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     if (isLoading) return renderLoading();
     if (!gap) return renderNotFound();
@@ -165,6 +191,7 @@ export const GapDetailModal = ({ gapId, assessmentId, isOpen, onClose }: GapDeta
         {renderSteps()}
         {renderEvidence()}
         {renderResolve()}
+        {renderGeneratePolicy()}
       </>
     );
   };

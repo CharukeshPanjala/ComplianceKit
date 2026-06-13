@@ -6,6 +6,8 @@ from common.models.saas_tool import SaasTool
 from common.models.regulation import Regulation, RegulationVersion
 from common.models.rule import Rule, RuleVersion
 from common.models.assessment import Assessment, Gap
+from common.models.ropa import RopaEntry
+from common.models.policy import Policy, PolicyVersion
 
 __all__ = [
     "Base",
@@ -20,4 +22,7 @@ __all__ = [
     "RuleVersion",
     "Assessment",
     "Gap",
+    "RopaEntry",
+    "Policy",
+    "PolicyVersion",
 ]
