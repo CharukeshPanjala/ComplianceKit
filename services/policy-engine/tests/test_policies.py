@@ -1,9 +1,12 @@
-# WHAT: Tests for policies API router | CHANGE: new file | WHY: COM-175 — cover generate/list/get endpoints
+# WHAT: Tests for policies API router | CHANGE: add tests for export/pdf, export/docx, status update | WHY: COM-176 — cover download and status-transition endpoints
 """
 Tests for policy generation API endpoints:
-- POST /api/v1/policies/generate
-- GET  /api/v1/policies
-- GET  /api/v1/policies/{policy_id}
+- POST  /api/v1/policies/generate
+- GET   /api/v1/policies
+- GET   /api/v1/policies/{policy_id}
+- GET   /api/v1/policies/{policy_id}/export/pdf
+- GET   /api/v1/policies/{policy_id}/export/docx
+- PATCH /api/v1/policies/{policy_id}/status
 """
 import uuid
 from datetime import datetime, timezone
@@ -344,5 +347,151 @@ class TestGetPolicy:
         mock_session.execute = AsyncMock(return_value=scalar_result(None))
 
         response = test_client.get("/api/v1/policies/pol_nonexistent")
+
+        assert response.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GET /api/v1/policies/{policy_id}/export/pdf
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestExportPolicyPdf:
+
+    def test_returns_pdf(self, client):
+        test_client, mock_session = client
+        policy = make_policy(policy_id="pol_existing1")
+        policy.content = "# Privacy Notice\n\n## Who We Are\n\nWe are **Acme Inc**.\n\n- Item one\n- Item two\n\n| Name | Purpose |\n| --- | --- |\n| cookie_a | Session |"
+        mock_session.execute = AsyncMock(return_value=scalar_result(policy))
+
+        response = test_client.get("/api/v1/policies/pol_existing1/export/pdf")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert "attachment; filename=privacy_notice.pdf" in response.headers["content-disposition"]
+        assert response.content.startswith(b"%PDF")
+
+    def test_not_found_returns_404(self, client):
+        test_client, mock_session = client
+        mock_session.execute = AsyncMock(return_value=scalar_result(None))
+
+        response = test_client.get("/api/v1/policies/pol_nonexistent/export/pdf")
+
+        assert response.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GET /api/v1/policies/{policy_id}/export/docx
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestExportPolicyDocx:
+
+    def test_returns_docx(self, client):
+        test_client, mock_session = client
+        policy = make_policy(policy_id="pol_existing1")
+        policy.content = "# Privacy Notice\n\n## Who We Are\n\nWe are **Acme Inc**.\n\n- Item one\n- Item two\n\n| Name | Purpose |\n| --- | --- |\n| cookie_a | Session |"
+        mock_session.execute = AsyncMock(return_value=scalar_result(policy))
+
+        response = test_client.get("/api/v1/policies/pol_existing1/export/docx")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        assert "attachment; filename=privacy_notice.docx" in response.headers["content-disposition"]
+        assert response.content.startswith(b"PK")
+
+    def test_not_found_returns_404(self, client):
+        test_client, mock_session = client
+        mock_session.execute = AsyncMock(return_value=scalar_result(None))
+
+        response = test_client.get("/api/v1/policies/pol_nonexistent/export/docx")
+
+        assert response.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PATCH /api/v1/policies/{policy_id}/status
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestUpdatePolicyStatus:
+
+    def test_draft_to_under_review_updates_status_only(self, client):
+        test_client, mock_session = client
+        policy = make_policy(policy_id="pol_existing1", current_version=1)
+        mock_session.execute = AsyncMock(return_value=scalar_result(policy))
+
+        response = test_client.patch(
+            "/api/v1/policies/pol_existing1/status",
+            json={"status": "under_review"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "under_review"
+        assert body["current_version"] == 1
+        assert all(not isinstance(c.args[0], PolicyVersion) for c in mock_session.add.call_args_list)
+
+    def test_transition_to_active_creates_approved_version(self, client):
+        test_client, mock_session = client
+        policy = make_policy(policy_id="pol_existing1", current_version=1)
+        mock_session.execute = AsyncMock(return_value=scalar_result(policy))
+
+        response = test_client.patch(
+            "/api/v1/policies/pol_existing1/status",
+            json={"status": "active"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "active"
+        assert body["current_version"] == 2
+        assert body["approved_by"] == FAKE_CLAIMS.user_id
+        assert body["approved_at"] is not None
+
+        added_versions = [c.args[0] for c in mock_session.add.call_args_list if isinstance(c.args[0], PolicyVersion)]
+        assert len(added_versions) == 1
+        assert added_versions[0].change_type == PolicyChangeType.APPROVED
+        assert added_versions[0].version_number == 2
+
+    def test_transition_to_archived_creates_archived_version(self, client):
+        test_client, mock_session = client
+        policy = make_policy(policy_id="pol_existing1", current_version=2)
+        mock_session.execute = AsyncMock(return_value=scalar_result(policy))
+
+        response = test_client.patch(
+            "/api/v1/policies/pol_existing1/status",
+            json={"status": "archived"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "archived"
+        assert body["current_version"] == 3
+        assert body["approved_by"] is None
+
+        added_versions = [c.args[0] for c in mock_session.add.call_args_list if isinstance(c.args[0], PolicyVersion)]
+        assert len(added_versions) == 1
+        assert added_versions[0].change_type == PolicyChangeType.ARCHIVED
+
+    def test_invalid_status_returns_422(self, client):
+        test_client, mock_session = client
+        policy = make_policy(policy_id="pol_existing1")
+        mock_session.execute = AsyncMock(return_value=scalar_result(policy))
+
+        response = test_client.patch(
+            "/api/v1/policies/pol_existing1/status",
+            json={"status": "bogus_status"},
+        )
+
+        assert response.status_code == 422
+
+    def test_not_found_returns_404(self, client):
+        test_client, mock_session = client
+        mock_session.execute = AsyncMock(return_value=scalar_result(None))
+
+        response = test_client.patch(
+            "/api/v1/policies/pol_nonexistent/status",
+            json={"status": "active"},
+        )
 
         assert response.status_code == 404

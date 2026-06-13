@@ -154,6 +154,7 @@ export const DashboardContent = ({ profile }: DashboardContentProps) => {
       <GapDetailModal
         gapId={selectedGapId}
         assessmentId={selectedAssessment.id}
+        regulation={selectedAssessment.regulation}
         isOpen={!!selectedGapId}
         onClose={handleModalClose}
       />

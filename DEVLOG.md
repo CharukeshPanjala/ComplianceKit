@@ -2368,3 +2368,62 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `services/policy-engine/app/main.py` — registered policies router
 - `services/policy-engine/tests/test_policies.py` ← new
 - `packages/common/common/ai/client.py` — removed `@lru_cache` from `get_async_client`/`get_sync_client`
+
+---
+
+## COM-176 — Policies API + library UI + DOCX/PDF download
+
+**Date:** 2026-06-13
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was built
+
+- `markdown_blocks.py` — shared Markdown→blocks parser (`Span`, `Heading`, `Paragraph`, `ListItem`, `Table`), feeds both exporters
+- `policy_pdf_generator.py` — reportlab PDF export, same navy/amber branding as the ROPA PDF; skips the redundant top-level H1, renders numbered/bulleted lists and tables
+- `policy_docx_generator.py` — python-docx export, same document structure, shaded table headers
+- `GET /api/v1/policies/{policy_id}/export/pdf` and `/export/docx`
+- `PATCH /api/v1/policies/{policy_id}/status` — hybrid versioning: draft↔under_review just flips `Policy.status`; transitions to active/archived bump `current_version` and append a new `PolicyVersion` (change_type=approved/archived); →active also sets `approved_by`/`approved_at`
+- 23 new policy-engine tests (9 status-transition tests in `test_policies.py`, 14 export/markdown-parser tests in new `test_policy_export.py`) — 262 total passing
+- Frontend: `policiesApi.ts` + `usePolicies.ts` hooks (list, detail, generate, status update, PDF/DOCX download via blob)
+- `/policies` — library grid with status badges + "Generate Policy" modal (policy type select + GDPR/NIS2/EU AI Act regulation tabs, open-gap checklist sourced from `useLatestAssessments`/`useGaps`)
+- `/policies/[id]` — markdown viewer (react-markdown + remark-gfm, custom Tailwind component map), status workflow buttons, version history sidebar, PDF/DOCX export buttons
+- Dashboard `GapDetailModal` — "Generate Policy from this gap" button → `/policies?gap_id=...&regulation=...`, auto-opens the modal pre-filled with that gap checked and the matching regulation tab active
+- Sidebar — `/policies` nav item enabled (removed "Soon" badge)
+
+### Key Decisions
+
+- Shared `markdown_blocks.py` intermediate representation avoids duplicating Markdown parsing between the reportlab and python-docx generators
+- Status endpoint uses a hybrid model — cheap draft↔under_review toggles don't bloat version history; only approval/archival transitions create an auditable `PolicyVersion` snapshot
+- Generate Policy modal sources gaps from all three regulations via tabs (not just the originating gap's regulation) — lets a single policy address gaps across GDPR/NIS2/AI Act
+- No `@tailwindcss/typography` dependency — markdown rendered via a custom `components` map on `react-markdown` to stay within existing Tailwind conventions
+
+### New Dependencies
+
+- `python-docx ^1.2.0` (policy-engine) — DOCX generation
+- `react-markdown ^10.1.0` + `remark-gfm ^4.0.1` (frontend) — policy content rendering
+
+### Gotchas
+
+- Initial PDF generator ordered-list rendering didn't track item numbers (every item rendered as "-") — fixed by resetting an `ordered_counter` whenever a non-ordered-list block is encountered
+- `policy-engine` Docker healthcheck hits `localhost:8000/health` but the service listens on 8001 — pre-existing misconfig (container shows `unhealthy`), `/health` on 8001 returns 200. Not touched, out of scope.
+
+### Files Changed
+
+- `services/policy-engine/app/engine/markdown_blocks.py` ← new
+- `services/policy-engine/app/engine/policy_pdf_generator.py` ← new
+- `services/policy-engine/app/engine/policy_docx_generator.py` ← new
+- `services/policy-engine/app/routers/policies.py` — export + status endpoints, `_serialize` adds approved_by/approved_at
+- `services/policy-engine/tests/test_policies.py` — status transition tests
+- `services/policy-engine/tests/test_policy_export.py` ← new
+- `services/policy-engine/pyproject.toml`, `uv.lock` — added python-docx
+- `frontend/src/lib/policiesApi.ts` ← new
+- `frontend/src/lib/hooks/usePolicies.ts` ← new
+- `frontend/src/app/(portal)/policies/page.tsx` ← new
+- `frontend/src/app/(portal)/policies/_components/PolicyLibrary.tsx` ← new
+- `frontend/src/app/(portal)/policies/_components/GeneratePolicyModal.tsx` ← new
+- `frontend/src/app/(portal)/policies/[id]/page.tsx` ← new
+- `frontend/src/app/(portal)/policies/[id]/_components/PolicyMarkdown.tsx` ← new
+- `frontend/src/app/(portal)/_components/Sidebar.tsx` — enabled `/policies` nav
+- `frontend/src/app/(portal)/dashboard/_components/GapDetailModal.tsx` — "Generate Policy" button + `regulation` prop
+- `frontend/src/app/(portal)/dashboard/_components/DashboardContent.tsx` — pass `regulation` to GapDetailModal
+- `frontend/package.json`, `pnpm-lock.yaml` — added react-markdown, remark-gfm

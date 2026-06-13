@@ -1,6 +1,8 @@
-# WHAT: Policies API router in policy-engine | CHANGE: new file | WHY: COM-175 — generate AI-drafted policies from selected gaps, list and view policies + version history
+# WHAT: Policies API router in policy-engine | CHANGE: add PDF/DOCX export + status update endpoints | WHY: COM-176 — download a policy and manage its review status
 
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,8 @@ from common.models.policy import (
 
 from app.config import settings
 from app.engine.policy_generator import PolicyGenerator, GapContext, ProfileContext
+from app.engine.policy_pdf_generator import generate_policy_pdf
+from app.engine.policy_docx_generator import generate_policy_docx
 
 router = APIRouter(prefix="/api/v1/policies", tags=["policies"])
 
@@ -32,6 +36,10 @@ class PolicyGenerateRequest(BaseModel):
         if not v:
             raise ValueError("At least one gap_id is required")
         return v
+
+
+class PolicyStatusRequest(BaseModel):
+    status: str
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -63,6 +71,8 @@ def _serialize(p: Policy) -> dict:
         "is_ai_enhanced": p.is_ai_enhanced,
         "related_article": p.related_article,
         "next_review_date": p.next_review_date,
+        "approved_by": p.approved_by,
+        "approved_at": p.approved_at,
         "created_at": p.created_at,
         "updated_at": p.updated_at,
     }
@@ -233,3 +243,86 @@ async def get_policy(
         for v in versions
     ]
     return data
+
+
+# ── GET /api/v1/policies/{policy_id}/export/pdf ──────────────────────────────
+
+@router.get("/{policy_id}/export/pdf")
+async def export_policy_pdf(
+    policy_id: str,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    policy = await _get_policy(session, policy_id, claims.tenant_id)
+    pdf_bytes = generate_policy_pdf(policy)
+    filename = f"{policy.type.value}.pdf" if policy.type else "policy.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ── GET /api/v1/policies/{policy_id}/export/docx ─────────────────────────────
+
+@router.get("/{policy_id}/export/docx")
+async def export_policy_docx(
+    policy_id: str,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    policy = await _get_policy(session, policy_id, claims.tenant_id)
+    docx_bytes = generate_policy_docx(policy)
+    filename = f"{policy.type.value}.docx" if policy.type else "policy.docx"
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ── PATCH /api/v1/policies/{policy_id}/status ────────────────────────────────
+
+@router.patch("/{policy_id}/status")
+async def update_policy_status(
+    policy_id: str,
+    body: PolicyStatusRequest,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    try:
+        new_status = PolicyStatus(body.status)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid status '{body.status}'")
+
+    policy = await _get_policy(session, policy_id, claims.tenant_id)
+
+    if new_status in (PolicyStatus.ACTIVE, PolicyStatus.ARCHIVED):
+        policy.current_version += 1
+        version = PolicyVersion(
+            tenant_id=claims.tenant_id,
+            tenant_name=policy.tenant_name,
+            policy_id=policy.policy_id,
+            version_number=policy.current_version,
+            status=new_status,
+            content_format=policy.content_format,
+            title=policy.title,
+            content=policy.content,
+            is_ai_enhanced=policy.is_ai_enhanced,
+            change_type=PolicyChangeType.APPROVED if new_status == PolicyStatus.ACTIVE else PolicyChangeType.ARCHIVED,
+            created_by=claims.user_id,
+        )
+        if new_status == PolicyStatus.ACTIVE:
+            now = datetime.now(timezone.utc)
+            version.approved_by = claims.user_id
+            version.approved_at = now
+            policy.approved_by = claims.user_id
+            policy.approved_at = now
+        session.add(version)
+
+    policy.status = new_status
+    await session.flush()
+    await session.refresh(policy)
+    await session.commit()
+
+    return _serialize(policy)
