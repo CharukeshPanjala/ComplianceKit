@@ -9,6 +9,8 @@ from common.models.assessment import Assessment, Gap
 from common.models.ropa import RopaEntry
 from common.models.policy import Policy, PolicyVersion
 from common.models.processor import Processor
+from common.models.breach import BreachIncident
+from common.models.dsar import DsarRequest
 
 __all__ = [
     "Base",
@@ -27,4 +29,6 @@ __all__ = [
     "Policy",
     "PolicyVersion",
     "Processor",
+    "BreachIncident",
+    "DsarRequest",
 ]
