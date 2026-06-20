@@ -7,6 +7,7 @@ from app.routers.policies import router as policies_router
 from app.routers.reports import router as reports_router
 from app.routers.processors import router as processors_router
 from app.routers.breach import router as breach_router
+from app.routers.dsar import router as dsar_router
 from app.config import settings
 
 app = FastAPI(title="Policy Engine", version="0.1.0")
@@ -26,6 +27,7 @@ app.include_router(policies_router)
 app.include_router(reports_router)
 app.include_router(processors_router)
 app.include_router(breach_router)
+app.include_router(dsar_router)
 
 @app.get("/health")
 async def health():

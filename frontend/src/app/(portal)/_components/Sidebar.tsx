@@ -105,7 +105,6 @@ const NAV_ITEMS = [
         />
       </svg>
     ),
-    comingSoon: true,
   },
 ];
 
