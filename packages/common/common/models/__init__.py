@@ -8,6 +8,7 @@ from common.models.rule import Rule, RuleVersion
 from common.models.assessment import Assessment, Gap
 from common.models.ropa import RopaEntry
 from common.models.policy import Policy, PolicyVersion
+from common.models.processor import Processor
 
 __all__ = [
     "Base",
@@ -25,4 +26,5 @@ __all__ = [
     "RopaEntry",
     "Policy",
     "PolicyVersion",
+    "Processor",
 ]
