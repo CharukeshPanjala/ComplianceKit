@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { Sidebar } from "./_components/Sidebar";
+import { DpoAssistantWidget } from "./_components/DpoAssistantWidget";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   let isComplete = false;
@@ -24,6 +25,7 @@ export default async function PortalLayout({ children }: { children: React.React
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 md:ml-64 lg:ml-72">{children}</div>
+      <DpoAssistantWidget />
     </div>
   );
 }
