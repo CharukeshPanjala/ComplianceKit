@@ -47,11 +47,14 @@ async def handle_org_created(data: dict, db: AsyncSession) -> None:
     org_name: str = data["name"]
     slug: str = data.get("slug") or org_name.lower().replace(" ", "-")
 
-    # Duplicate guard — skip if tenant already exists for this Clerk org
     existing = await db.execute(
         select(Tenant).where(Tenant.tenant_id == clerk_org_id)
     )
-    if existing.scalar_one_or_none():
+    existing_tenant = existing.scalar_one_or_none()
+    if existing_tenant:
+        existing_tenant.name = org_name
+        existing_tenant.slug = slug
+        await db.commit()
         return
 
     tenant = Tenant(
@@ -125,11 +128,13 @@ async def handle_membership_created(data: dict, db: AsyncSession) -> None:
     if not tenant:
         return
 
-    # Duplicate guard
     existing = await db.execute(
         select(User).where(User.user_id == clerk_user_id)
     )
-    if existing.scalar_one_or_none():
+    existing_user = existing.scalar_one_or_none()
+    if existing_user:
+        existing_user.email = email
+        await db.commit()
         return
 
     user = User(
