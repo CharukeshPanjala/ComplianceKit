@@ -121,7 +121,6 @@ class TestGenerateProcessors:
     def test_returns_generated_count(self, client):
         test_client, mock_session = client
         profile = make_mock_profile(tech_stack=["Stripe", "AWS"])
-        processor = make_mock_processor()
         call_count = 0
 
         async def side_effect(stmt):

@@ -514,9 +514,7 @@ class TestDeadlineComputation:
 
     def test_due_date_is_exactly_30_days_after_received(self, client):
         test_client, mock_session = client
-        received = date(2026, 6, 1)
         expected_due = date(2026, 7, 1)
-        dsar = make_mock_dsar(received_at=datetime(2026, 6, 1, tzinfo=timezone.utc), due_date=expected_due)
 
         async def refresh(obj):
             obj.public_id = "dsr_test001"
