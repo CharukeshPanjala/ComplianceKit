@@ -88,8 +88,8 @@ class TestClerkWebhook:
         mock_session.add.assert_called_once()
         mock_session.commit.assert_called_once()
 
-    def test_org_created_duplicate_skips_silently(self, client):
-        """organization.created duplicate → 200, no insert."""
+    def test_org_created_duplicate_upserts_name(self, client):
+        """organization.created duplicate → 200, no insert but name/slug updated."""
         test_client, mock_session = client
 
         from common.models.tenant import Tenant
@@ -111,7 +111,7 @@ class TestClerkWebhook:
 
         assert response.status_code == 200
         mock_session.add.assert_not_called()
-        mock_session.commit.assert_not_called()
+        mock_session.commit.assert_called_once()
 
     def test_user_created_no_org_skips_gracefully(self, client):
         """user.created with no org membership → 200, no insert."""

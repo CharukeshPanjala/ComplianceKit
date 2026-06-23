@@ -126,3 +126,6 @@ seed-nis2:
 
 seed-euai:
 	cd packages/common && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit uv run python scripts/seeders/seed_eu_ai_act.py
+
+seed-embeddings:
+	cd packages/common && DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/compliancekit uv run python scripts/seeders/seed_embeddings.py

@@ -35,3 +35,12 @@ def generate_policy_id() -> str:
 
 def generate_policy_version_id() -> str:
     return f"ver_{generate(size=8)}"
+
+def generate_processor_id() -> str:
+    return f"prc_{generate(size=8)}"
+
+def generate_breach_id() -> str:
+    return f"brc_{generate(size=8)}"
+
+def generate_dsar_id() -> str:
+    return f"dsr_{generate(size=8)}"

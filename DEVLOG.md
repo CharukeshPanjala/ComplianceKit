@@ -2467,3 +2467,91 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
 - `frontend/src/app/(portal)/dashboard/_components/DashboardContent.tsx` — "Compliance Report" header with download buttons
 
 **This closes Sprint 3.**
+
+---
+
+## Session — CI fixes, Jira triage, Sprint 4/5 re-plan
+
+**Date:** 2026-06-14
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was done
+
+- Fixed CI failures on the open PR (no ticket — lint debt from COM-172/173):
+  - `services/policy-engine/app/engine/pdf_generator.py` — removed unused `TA_CENTER, TA_LEFT` import and dead `base = getSampleStyleSheet()` assignment
+  - `services/policy-engine/app/engine/ropa_generator.py` — removed unused `uuid` import and unused `RopaEntry, RopaSource, RopaStatus` imports
+  - `services/policy-engine/tests/test_ropa_generator.py` — removed unused `pytest` import
+  - `frontend/src/app/(portal)/ropa/_components/RopaEditModal.tsx` — fixed 4 `Record<string, string|boolean>` type casts (`as X` → `as unknown as X`)
+  - Verified: `ruff check .` clean, `mypy` clean, `pnpm typecheck`/`pnpm lint` clean, 283 policy-engine tests pass
+  - Committed as `fix(policy): remove unused imports and fix ropa edit modal type casts`
+- Jira triage: confirmed of the 22 tickets closed by the Sprint 3 PR, only COM-176 and COM-177 were still "To Do" (the other 20 were already Done from a prior session) — gave user the epic mapping for all 22
+- Re-planned the roadmap into CLAUDE.md:
+  - Merged old Sprint 4 (Vendor+Breach), Sprint 5 (DSAR), Sprint 6 (AI Infra+DPO+DPA Analyser) into a single new **Sprint 4** (11 tickets), grouped by epic
+  - Discovered 5 new epics not previously tracked (5.1 DPIA, 5.2 Audit Export, 6.1 Cookie Consent, 6.2 Training Tracker, 6.3 Cross-Reg Mapping) — created new **Sprint 5** (10 tickets) from these
+- Walked through the full product end-to-end for the user (onboarding → assessment engine → dashboard → ROPA → policies → compliance report) and how Sprint 4 tickets connect to existing modules (e.g. COM-189 DPA analyser consumes COM-180/181 vendor register; COM-187 embeddings unlock COM-185/186 DPO assistant)
+
+### Key Decisions
+
+- Sprint 4 = everything previously planned (old Sprint 4/5/6), Sprint 5 = newly-discovered epics — per user's explicit "old tickets in one sprint, new in the next"
+- CI lint/typecheck commands documented as Critical Rule 17 — run locally before push since CI checks already-committed files, not just diffs
+
+### Gotchas
+
+- `git commit --file -` with a leading blank line in the message causes commitlint to fail with "header must not start with whitespace / subject may not be empty / type may not be empty" even though the visible message looks correct — use `-m` directly instead
+
+### What's left / next steps
+
+- Sprint 4 (11 tickets) — not started. Suggested order: COM-180→181 (vendor/processor register), COM-178→179 (breach tracker), COM-182→183→184 (DSAR), COM-187→185→186→189 (AI infra + DPO assistant + DPA analyser)
+- Next session should start with COM-180 (`processors` table + RLS migration, auto-populate from `tech_stack`)
+
+---
+
+## Session — 2026-06-20 / 2026-06-21
+
+**Date:** 2026-06-20 to 2026-06-21
+**Branch:** feat/sprint-2-phase-3-dashboard
+
+### What was done
+
+**Sprint 4 — all 11 tickets shipped:**
+
+- COM-187: Rule embeddings engine + `make seed-embeddings` script; `rules.embedding` column populated via Azure text-embedding-3-small
+- COM-178: `breach_incidents` table + RLS migration (`753171fcbb47`)
+- COM-182: `dsar_requests` table + RLS (same migration as COM-178)
+- COM-180: `processors` table + RLS + `ProcessorGenerator` (auto-builds from company profile tech stack + SaaS tools)
+- COM-181: Processors API (`POST /generate`, `GET /`, `PATCH /{id}`, `DELETE /{id}`) + Vendor Register UI (`/vendors` page — table, generate button, edit modal, DPA status badge)
+- COM-179: Breach Tracker API (CRUD + `POST /{id}/draft-notification`) + Breach Tracker UI (`/breach` — incident table, create form, 72h/24h countdown badge, AI draft modal)
+- COM-183 + COM-184: DSAR API (CRUD, 30-day deadline, auto-sets `completed_at`) + DSAR UI (`/dsar` — form, status tracker, deadline badge, detail modal)
+- COM-185 + COM-186: DPO Assistant API (streaming SSE chat with RAG over 258 embedded rules) + DPO Assistant UI (floating widget on every portal page — chat tab + Analyse DPA tab)
+- COM-189: DPA contract analyser (PDF upload → pypdf text extraction → AI checks 10 Art. 28 clauses → JSON result with per-clause status + overall score)
+
+**Test suites written (this session):**
+
+- `test_processors.py` — 20 tests: generate (no profile 404, empty stack, returns count, idempotent, unknown tools → 'other' category), list (empty, filters, invalid enum 422, enum serialisation), patch (not found 404, field updates, invalid enums), delete, method enforcement
+- `test_breach.py` — 37 tests: create (valid, deadline fields present, GDPR=72h, NIS2=24h, BOTH=24h, invalid enum 422, overdue=deadline_passed=True, notified overdue=deadline_passed=False), list (filters, invalid enum 422), get (found/404), patch (status, dpa_notified, invalid enum, all valid statuses), delete, draft-notification (not found 404, stub draft, title in subject, regulation in body, saved to record, NIS2/BOTH references)
+- `test_dsar.py` — 40 tests: create (valid, auto due_date=received_at+30d, all request types, days_remaining/is_overdue), list (filters, overdue flagging, terminal statuses not overdue, sorted by due_date), get (found, 404, request_type_label, PII in response), patch (status transitions, completing auto-sets completed_at, not overwrite if already set, all terminal statuses, identity verified, rejection_reason, internal_notes, assign_to), delete, deadline computation (exact 30-day arithmetic, positive/negative days_remaining)
+- `test_dpo_assistant.py` — 21 tests: chat (SSE stream, [DONE] sentinel, stub message, empty/multi-turn messages, regulation filter, null regulation, arbitrary role accepted, RAG failure graceful, AI enabled streams chunks), contract analyser (non-PDF 400, over-10MB 413, unreadable PDF 422, stub analysis shape/clauses/score/unknown, empty text 422, AI parses JSON, AI malformed 502, markdown fences stripped)
+
+### Key Decisions
+
+- `pypdf` is a lazy import inside `analyse_contract` function body — must patch `pypdf.PdfReader` directly, not `app.routers.dpo_assistant.pypdf` (which doesn't exist as a module attribute)
+- `settings.ai_enabled` is True in test env (user has Azure creds set) — must patch `app.routers.dpo_assistant.settings` when testing stub/AI-disabled code paths
+- DPO chat: stateless (client sends full message history per request); no DB persistence needed for MVP
+- RAG failure is swallowed silently (`except Exception: pass`) — AI still responds, just without context
+- ProcessorGenerator runs after `DELETE WHERE source=AUTO_GENERATED` — idempotent, safe to call repeatedly
+
+### Gotchas
+
+- `patch("app.routers.dpo_assistant.pypdf")` fails with AttributeError because pypdf is imported lazily inside the function; correct target is `patch("pypdf.PdfReader")`
+- `settings.ai_enabled` is a computed `@property` — can't use `patch.object` with `PropertyMock` easily; replacing the whole settings object with `patch("app.routers.dpo_assistant.settings")` is simpler and works
+- Breach `deadline_passed` logic: False when `dpa_notified=True` even if hours_remaining < 0 (don't keep counting after notification sent)
+
+### What's left / next steps
+
+- Sprint 5: MVP Hardening before new features
+  - COM-124: Playwright E2E tests (onboarding, document gen, DSAR flow)
+  - COM-125: Audit and standardise error handling across all endpoints
+  - COM-126: Performance baselines (API <200ms, dashboard <2s, Lighthouse >85)
+  - COM-127: Production deploy — custom domain, SSL, smoke test
+  - COM-128: MVP security checklist — secrets, auth, rate limiting, CORS, SQLi, XSS
+- `make seed-embeddings` needs to be run in production once Azure creds are set (RAG requires populated embeddings)

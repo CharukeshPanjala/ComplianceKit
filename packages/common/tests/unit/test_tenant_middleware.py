@@ -31,8 +31,9 @@ class TestGetTenantSession:
         mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
         with patch("common.db.tenant.AppUserSessionLocal", mock_factory):
-            gen = get_tenant_session(request=make_mock_request(), claims=VALID_CLAIMS)
-            await gen.__anext__()
+            with patch("common.db.tenant._provision_if_missing", new=AsyncMock()):
+                gen = get_tenant_session(request=make_mock_request(), claims=VALID_CLAIMS)
+                await gen.__anext__()
 
         mock_session.execute.assert_called_once()
         call_args = mock_session.execute.call_args
@@ -64,8 +65,9 @@ class TestGetTenantSession:
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
             with patch("common.db.tenant.AppUserSessionLocal", mock_factory):
-                gen = get_tenant_session(request=make_mock_request(), claims=claims)
-                await gen.__anext__()
+                with patch("common.db.tenant._provision_if_missing", new=AsyncMock()):
+                    gen = get_tenant_session(request=make_mock_request(), claims=claims)
+                    await gen.__anext__()
 
         assert tenant_ids_set == ["ten_aaa111", "ten_bbb222"]
 

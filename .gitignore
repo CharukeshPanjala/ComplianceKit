@@ -48,3 +48,5 @@ htmlcov/
 .claude/
 CLAUDE.md
 CLAUDE_PROMPT.md
+docs/PRODUCT_KNOWLEDGE.md
+docs/PRODUCT_KNOWLEDGE.pdf
