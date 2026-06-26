@@ -45,12 +45,12 @@ type FormData = z.infer<typeof schema>;
 // ── Constants ─────────────────────────────────────────────
 
 const LAWFUL_BASIS_OPTIONS = [
-  { value: "consent", label: "Consent — Art. 6(1)(a)" },
-  { value: "contract", label: "Contract — Art. 6(1)(b)" },
-  { value: "legal_obligation", label: "Legal obligation — Art. 6(1)(c)" },
-  { value: "vital_interests", label: "Vital interests — Art. 6(1)(d)" },
-  { value: "public_task", label: "Public task — Art. 6(1)(e)" },
-  { value: "legitimate_interest", label: "Legitimate interest — Art. 6(1)(f)" },
+  { value: "consent", label: "Consent - Art. 6(1)(a)" },
+  { value: "contract", label: "Contract - Art. 6(1)(b)" },
+  { value: "legal_obligation", label: "Legal obligation - Art. 6(1)(c)" },
+  { value: "vital_interests", label: "Vital interests - Art. 6(1)(d)" },
+  { value: "public_task", label: "Public task - Art. 6(1)(e)" },
+  { value: "legitimate_interest", label: "Legitimate interest - Art. 6(1)(f)" },
 ];
 
 const TRANSFER_MECHANISM_OPTIONS = [
@@ -241,7 +241,7 @@ export default function Step6Form({ initialData }: Props) {
 
   const renderGdprSection = () => (
     <div className={styles.section}>
-      <p className={styles.sectionTitle}>GDPR — Lawful basis & obligations</p>
+      <p className={styles.sectionTitle}>GDPR - Lawful basis & obligations</p>
 
       <FormField
         label="What is your lawful basis for processing personal data?"
