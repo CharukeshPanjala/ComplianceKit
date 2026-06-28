@@ -47,9 +47,10 @@ SEVERITY_WEIGHTS = {
 
 class Scorer:
 
-    def __init__(self, profile: dict, applicability_results: list[ApplicabilityResult]):
+    def __init__(self, profile: dict, applicability_results: list[ApplicabilityResult], regulation_name: str):
         self.profile = profile
         self.applicability_results = applicability_results
+        self.regulation_name = regulation_name
 
         # Profile shortcuts
         self.gdpr = profile.get("gdpr_data") or {}
@@ -137,10 +138,23 @@ class Scorer:
     # ── Profile field scoring ─────────────────────────────────────────────────
 
     def _score_profile_field(self, rule: Rule) -> ScoringResult:
-        """Evaluate rules that can be fully assessed from profile data."""
-        n = rule.article_number
+        """Route profile_field rules to the right regulation's scoring logic.
 
-        # ── GDPR profile_field rules ──────────────────────────────────────────
+        Article numbers are not unique across regulations — each regulation
+        restarts numbering near 1 — so this must dispatch by regulation_name
+        before checking article_number, or rules from different regulations
+        with the same number will collide.
+        """
+        if self.regulation_name == "GDPR":
+            return self._score_gdpr_field(rule)
+        if self.regulation_name == "NIS2":
+            return self._score_nis2_field(rule)
+        if self.regulation_name == "EU_AI_ACT":
+            return self._score_ai_act_field(rule)
+        return self._result(rule, "unknown", {"reason": "evaluation_logic_not_yet_implemented"})
+
+    def _score_gdpr_field(self, rule: Rule) -> ScoringResult:
+        n = rule.article_number
 
         # Art. 3 — Territorial scope
         if n == 3:
@@ -270,11 +284,15 @@ class Scorer:
         if n == 20:
             return self._result(rule, "unknown", {"reason": "portability_mechanism_requires_technical_verification"})
 
-        # ── NIS2 profile_field rules ──────────────────────────────────────────
+        # Default for GDPR profile_field rules we haven't explicitly handled
+        return self._result(rule, "unknown", {"reason": "evaluation_logic_not_yet_implemented"})
+
+    def _score_nis2_field(self, rule: Rule) -> ScoringResult:
+        n = rule.article_number
 
         # NIS2 Art. 2/3 — Scope and entity type
         if n in {2, 3}:
-            sectors = self.nis2.get("nis2_sectors") or []
+            sectors = self.nis2.get("sectors") or []
             entity_type = self.nis2.get("entity_type") or ""
             if sectors and entity_type:
                 return self._result(rule, "met", {"sectors": sectors, "entity_type": entity_type})
@@ -282,26 +300,30 @@ class Scorer:
 
         # NIS2 Arts. 18/23 — Incident reporting
         if n in {18, 23}:
-            has_incident_plan = self.nis2.get("has_incident_plan")
+            has_incident_plan = self.nis2.get("has_incident_response_plan")
             if has_incident_plan is True:
-                return self._result(rule, "met", {"has_incident_plan": True})
+                return self._result(rule, "met", {"has_incident_response_plan": True})
             if has_incident_plan is False:
-                return self._result(rule, "not_met", {"has_incident_plan": False})
-            return self._result(rule, "unknown", {"has_incident_plan": None})
+                return self._result(rule, "not_met", {"has_incident_response_plan": False})
+            return self._result(rule, "unknown", {"has_incident_response_plan": None})
 
         # NIS2 Art. 27 — Registration
         if n == 27:
             return self._result(rule, "unknown", {"reason": "nis2_registration_requires_verification"})
 
-        # ── EU AI Act profile_field rules ─────────────────────────────────────
+        # Default for NIS2 profile_field rules we haven't explicitly handled
+        return self._result(rule, "unknown", {"reason": "evaluation_logic_not_yet_implemented"})
+
+    def _score_ai_act_field(self, rule: Rule) -> ScoringResult:
+        n = rule.article_number
 
         # EU AI Act Art. 2 — Scope
         if n == 2:
             uses_ai = self.ai.get("uses_ai")
-            role = self.ai.get("role") or ""
+            role = self.ai.get("ai_role") or ""
             return self._result(rule, "met" if uses_ai and role else "partial", {
                 "uses_ai": uses_ai,
-                "role": role,
+                "ai_role": role,
             })
 
         # EU AI Act Art. 5 — Prohibited practices
@@ -313,29 +335,40 @@ class Scorer:
 
         # EU AI Act Art. 6 — High-risk classification
         if n == 6:
-            high_risk = self.ai.get("high_risk_categories") or []
+            high_risk = self.ai.get("high_risk_ai_categories") or []
             return self._result(rule, "met" if high_risk is not None else "unknown", {
-                "high_risk_categories": high_risk,
+                "high_risk_ai_categories": high_risk,
+            })
+
+        # EU AI Act Art. 22 — Authorised representative (non-EU providers)
+        if n == 22:
+            jurisdiction = self.profile.get("primary_jurisdiction") or ""
+            role = self.ai.get("ai_role") or ""
+            if "provider" not in role and role != "both":
+                return self._result(rule, "met", {"ai_role": role, "reason": "not_a_provider"})
+            return self._result(rule, "unknown", {
+                "primary_jurisdiction": jurisdiction,
+                "reason": "eu_representative_appointment_requires_verification",
             })
 
         # EU AI Act Art. 26 — Deployer obligations
         if n == 26:
-            role = self.ai.get("role") or ""
-            high_risk = self.ai.get("high_risk_categories") or []
+            role = self.ai.get("ai_role") or ""
+            high_risk = self.ai.get("high_risk_ai_categories") or []
             if "deployer" in role or role == "both":
                 if high_risk:
                     return self._result(rule, "unknown", {"reason": "deployer_obligations_require_verification"})
-                return self._result(rule, "met", {"role": role, "no_high_risk_ai": True})
+                return self._result(rule, "met", {"ai_role": role, "no_high_risk_ai": True})
             return self._result(rule, "met", {"deployer_obligations": "not_applicable"})
 
         # EU AI Act Art. 51 — GPAI systemic risk
         if n == 51:
-            gpai = self.ai.get("gpai_model")
+            gpai = self.ai.get("uses_gpai")
             if gpai:
                 return self._result(rule, "unknown", {"reason": "gpai_systemic_risk_requires_compute_verification"})
-            return self._result(rule, "met", {"gpai_model": False})
+            return self._result(rule, "met", {"uses_gpai": False})
 
-        # Default for profile_field rules we haven't explicitly handled
+        # Default for AI Act profile_field rules we haven't explicitly handled
         return self._result(rule, "unknown", {"reason": "evaluation_logic_not_yet_implemented"})
 
     # ── Helpers ───────────────────────────────────────────────────────────────

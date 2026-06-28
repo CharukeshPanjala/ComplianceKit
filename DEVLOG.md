@@ -2555,3 +2555,43 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
   - COM-127: Production deploy — custom domain, SSL, smoke test
   - COM-128: MVP security checklist — secrets, auth, rate limiting, CORS, SQLi, XSS
 - `make seed-embeddings` needs to be run in production once Azure creds are set (RAG requires populated embeddings)
+
+---
+
+## Session — 2026-06-28 — Compliance engine reliability audit, Phase 1 (scorer bug fixes)
+
+**Date:** 2026-06-28
+**Branch:** fix/sprint-5-touchups
+
+### What was done
+
+Ran a full manual article-by-article audit of all 258 rules (GDPR 99 + NIS2 46 + EU AI Act 113) against the source regulation PDFs, looking for dangling field references and content drift. Findings written to `docs/article_audit_gdpr.md`, `docs/article_audit_nis2.md`, `docs/article_audit_ai_act.md`, rolled up in `docs/data_requirements_summary.md`. Full scope and build plan recorded in `CLAUDE.md` under "Epic 5.3 — Compliance Engine Reliability Overhaul".
+
+Fixed everything in Phase 1 (code bugs only — content drift and new data collection are separate later phases):
+
+- `services/policy-engine/app/engine/applicability.py` — fixed `ai_act_data.role`→`ai_role`, `high_risk_categories`→`high_risk_ai_categories`, `gpai_model`→`uses_gpai` (38 articles affected)
+- `services/policy-engine/app/engine/scorer.py` — same three field-name fixes in the AI Act scoring branches
+- `services/policy-engine/app/engine/scorer.py` — **major fix:** `_score_profile_field` had no regulation dispatch, just a flat `if n == X` chain on `article_number` alone. Since GDPR/NIS2/AI Act each restart article numbering near 1, colliding numbers (2, 3, 6, 22) were silently scored using whichever regulation's branch appeared first in the file — e.g. every NIS2 Art. 3 assessment was scored "met" using GDPR's jurisdiction check, ignoring real sector/entity data. Fixed by adding `regulation_name` to `Scorer.__init__` (mirrors `ApplicabilityEngine`'s existing pattern) and splitting into `_score_gdpr_field`/`_score_nis2_field`/`_score_ai_act_field`
+- Wrote real scoring logic for AI Act Art. 22 (authorised EU representative) — it previously had no branch of its own and silently inherited GDPR's Art. 22 (automated decisions) logic via the collision above
+- Verified `gdpr_data.transfer_mechanisms` is already correctly used in the Art. 44-49 scoring branch — the audit's complaint was about the `evaluation_logic` JSONB column on the `rules` table, which is descriptive metadata only and never read by any code at runtime
+- Added 28 new tests: one per previously-untested `profile_field` article (AI Act had zero scorer-level test coverage before this), plus dedicated collision-guard tests proving Art. 2/3/6/22 score correctly even when other regulations' data is present in the same profile
+
+### Key Decisions
+
+- `evaluation_logic`/`profile_field` JSONB columns on `rules` are documentation only — all real scoring logic lives in Python in `scorer.py`/`applicability.py`. Dangling references in that JSONB are a data-quality issue, not a functional bug, unless the matching Python code also has the wrong key (which it did for the three AI Act fields above)
+- Content drift (wrong article text under wrong numbers — 44/113 in AI Act, 10/46 in NIS2) is being treated as a separate phase, re-derived from the PDFs article-by-article with review before re-seeding, not a bulk rewrite
+- Decision made to eventually collect all missing data points (~50 across the three regulations) rather than leave permanent "unknown" gaps — tiered into onboarding checkboxes, a new Evidence Center (document upload + AI extraction, generalizing the DPA analyser pattern), and a small deferred tier — full list in `CLAUDE.md`
+
+### Gotchas
+
+- `Rule` has no `regulation_name` field on the real ORM model (only `regulation_id` FK) — the test helper's `rule.regulation_name` mock attribute doesn't exist in production, which is exactly why the collision bug went undetected: nothing in the runtime code path could have read it even if it tried
+- `Scorer` is always constructed with rules from a single regulation per assessment run (the worker loads `_get_rules(session, regulation.name)` scoped to one regulation), so the collision wasn't a "rules get fully mixed together" bug — it was a "the wrong `if` branch wins regardless of which regulation is actually running" bug, which is subtler and explains why it survived this long
+
+### What's left / next steps
+
+- Phase 2 (next): GDPR content fix — Art. 26 dangling `has_joint_controllers` reference + Arts. 30/37/49/58/88 nuance gaps. Cheap, one pass.
+- Phase 3: NIS2 content fix — re-derive Arts. 5, 6, 18, 24, 25, 38, 42, 43, 46 from `docs/Nis2.pdf`
+- Phase 4: AI Act content fix — 44 mismatched articles, highest priority Art. 99 (currently mislabeled as an aviation-security amendment; real content is the €35M/7% turnover penalties article)
+- Phase 5: new data collection (Tier A onboarding fields, Tier B Evidence Center)
+- Phase 6: customer transparency layer (plain-English gap explanations — mockups already reviewed, not built)
+- Phase 7: dangling-reference lint script in CI

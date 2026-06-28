@@ -99,6 +99,7 @@ async def run_assessment(ctx: dict, assessment_id: str) -> dict:
             scorer = Scorer(
                 profile=profile,
                 applicability_results=applicability_results,
+                regulation_name=regulation.name,
             )
             scoring_results = scorer.evaluate()
             score_summary = scorer.calculate_overall_score(scoring_results)
