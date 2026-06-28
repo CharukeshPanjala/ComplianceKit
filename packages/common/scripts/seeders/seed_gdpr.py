@@ -365,7 +365,7 @@ GDPR_ARTICLES = [
         "severity": Severity.MEDIUM, "fine_tier": "tier_1", "is_mandatory": True, "check_type": "document_required",
         "profile_field": None, "applies_to_b2c": True, "applies_to_b2b": True,
         "applicability_tags": ["GDPR", "joint_controllers", "controller"],
-        "evaluation_logic": {"type": "conditional", "condition": "has_joint_controllers == true", "then": "joint_controller_agreement_exists"},
+        "evaluation_logic": {"type": "document_required", "note": "no profile field exists yet to detect joint-controller status; requires manual or document review", "required_documents": ["joint_controller_agreement"]},
         "remediation_hint": "Formalise joint controller arrangements in a written agreement covering liability allocation and data subject rights fulfilment.",
     },
     {
@@ -498,7 +498,7 @@ GDPR_ARTICLES = [
         "severity": Severity.CRITICAL, "fine_tier": "tier_1", "is_mandatory": True, "check_type": "profile_field",
         "profile_field": "has_compliance_officer", "applies_to_b2c": True, "applies_to_b2b": True,
         "applicability_tags": ["GDPR", "DPO", "data_protection_officer"],
-        "evaluation_logic": {"type": "profile_field", "check": "if DPO mandatory, has_compliance_officer == true", "fields": ["has_compliance_officer", "data_categories_processed", "number_of_data_subjects"]},
+        "evaluation_logic": {"type": "profile_field", "check": "has_compliance_officer == true", "fields": ["has_compliance_officer"], "limitation": "DPO-mandatory triggers (public authority, large-scale monitoring, large-scale special-category processing) are not independently computed; no `is_public_authority` field exists yet, so the engine can only check whether a DPO exists, not whether one is legally required"},
         "remediation_hint": "Assess whether a DPO is mandatory for your organisation. If so, appoint one and publish their contact details.",
     },
     {
@@ -758,7 +758,7 @@ GDPR_ARTICLES = [
         "title": "Powers",
         "chapter": "Chapter VI — Supervisory Authorities", "category": "Supervisory Authority",
         "description": "Supervisory authorities have investigative powers (audits, data access, obtaining information), corrective powers (warnings, reprimands, orders to comply, bans on processing, fines), and authorisation/advisory powers (approving BCRs, issuing opinions, accrediting certification bodies). Fines under Article 83 are imposed as part of these corrective powers.",
-        "plain_english": "Supervisory authorities can audit you, order you to stop processing, and issue fines of up to €20M or 4% of global turnover.",
+        "plain_english": "Supervisory authorities can audit you, order you to stop processing, and impose fines (see Article 83 for the exact amounts).",
         "severity": Severity.HIGH, "fine_tier": None, "is_mandatory": False, "check_type": "informational",
         "profile_field": None, "applies_to_b2c": True, "applies_to_b2b": True,
         "applicability_tags": ["GDPR", "supervisory_authority", "enforcement", "fines"],

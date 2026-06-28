@@ -2595,3 +2595,34 @@ Fixed everything in Phase 1 (code bugs only — content drift and new data colle
 - Phase 5: new data collection (Tier A onboarding fields, Tier B Evidence Center)
 - Phase 6: customer transparency layer (plain-English gap explanations — mockups already reviewed, not built)
 - Phase 7: dangling-reference lint script in CI
+
+---
+
+## Session — 2026-06-28 (cont'd) — Phase 2: GDPR content fix
+
+**Date:** 2026-06-28
+**Branch:** fix/sprint-5-touchups
+
+### What was done
+
+Checked all 6 GDPR audit findings (Arts. 26, 30, 37, 49, 58, 88) against the actual current seed data before changing anything — 2 of the 6 (Arts. 30 and 49) turned out to already be accurate; the audit's complaint didn't match what's actually in `seed_gdpr.py`. Fixed the 3 that were real:
+
+- **Art. 26 (real bug)** — `evaluation_logic.condition` referenced `has_joint_controllers`, a field that doesn't exist anywhere. Replaced with an honest `document_required` block noting no profile field exists yet to gate this (joint-controller status is in the Tier A onboarding backlog, Epic 5.3 Phase 5)
+- **Art. 37** — `evaluation_logic.check` said "if DPO mandatory, has_compliance_officer == true" without ever computing "DPO mandatory" from anything. Rewrote to state plainly that the engine can only check whether a DPO exists, not whether one is legally required (no `is_public_authority` field exists)
+- **Art. 58** — `plain_english` stated the €20M/4% fine figures, which actually belong to Art. 83 (already correctly stated there) — Art. 58 is about supervisory powers, not fine amounts. Removed the duplicated/conflated figures, pointed to Art. 83 instead
+- **Art. 88** — judgment call: left `is_mandatory: True` as-is. The audit flagged this as "questionable" since Art. 88 is a permissive clause (Member States *may* legislate further), but in practice nearly every Member State has exercised this option, and the existing remediation hint already tells customers to check national law. Flagging this decision rather than silently picking a side.
+
+Since `packages/common/scripts/seeders/seed_gdpr.py` is insert-only and skips if GDPR is already seeded, the 3 already-seeded DB rows needed a direct one-off correction, not a re-seed. Wrote `packages/common/scripts/seeders/fix_gdpr_content_phase2.py` (ORM-based, no raw SQL) to patch the 3 rows directly; ran it locally against the dev DB and verified via `psql` that all 3 rows now hold the corrected content. Also updated `seed_gdpr.py` itself so a fresh install seeds the corrected content directly.
+
+### Key Decisions
+
+- When an already-seeded row needs a data correction (not a schema change), write a small one-off ORM script rather than re-running the full seeder (which is insert-only and would either skip or duplicate) or touching the DB with raw SQL
+- Always re-verify each audit finding against the current file content before "fixing" it — 2 of 6 GDPR findings were already stale by the time this phase started
+
+### What's left / next steps
+
+- Phase 3: NIS2 content fix — re-derive Arts. 5, 6, 18, 24, 25, 38, 42, 43, 46 from `docs/Nis2.pdf`
+- Phase 4: AI Act content fix (largest effort — 44 mismatched articles)
+- Phase 5: new data collection
+- Phase 6: customer transparency layer
+- Phase 7: dangling-reference lint script in CI
