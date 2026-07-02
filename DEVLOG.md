@@ -2626,3 +2626,64 @@ Since `packages/common/scripts/seeders/seed_gdpr.py` is insert-only and skips if
 - Phase 5: new data collection
 - Phase 6: customer transparency layer
 - Phase 7: dangling-reference lint script in CI
+
+---
+
+## Session — 2026-06-30 — Epic 5.3 Phases 3, 4, 5, 6
+
+**Date:** 2026-06-30
+**Branch:** fix/sprint-5-touchups
+
+### Phase 3 — NIS2 full content + renumber
+
+The NIS2 seed data had a non-constant offset from real Directive article numbers starting at Article 5. Full audit performed against `docs/Nis2.pdf` + EUR-Lex consolidated text:
+
+- 13 rows renumbered (DB5→7, DB6→12, DB7→9, DB9→10, DB10→11, DB12→16, DB14↔15 swap, DB16→17, DB17→19)
+- 2 duplicate articles resolved: Art. 12 (DB6 kept, DB11 deleted/merged); Art. 24 (DB19 deleted, DB24 kept)
+- 2 missing articles inserted: Art. 5 "Minimum harmonisation", Art. 6 "Definitions"
+- Back block (Arts. 38-46) content cascaded to match real titles
+- Art. 46 "Addressees" inserted (previously missing entirely from the DB)
+- Content corrections applied to Arts. 13, 18, 24, 25 (wrong titles/descriptions from drift)
+
+Implementation: two-pass negative-staging approach inside a single ORM transaction (flush between passes, one commit) — required because the real unique constraint is on `(regulation_id, article)` string column, not just `article_number`. Discovered this during execution; agent self-corrected. Written as `fix_nis2_full_renumber.py` (one-off ORM script) + `seed_nis2.py` updated for fresh installs.
+
+Scorer-critical articles `{2, 3, 18, 23, 27}` were never touched — verified before and after.
+
+### Phase 4 — Real scoring logic audit
+
+Audited 6 "unknown-by-default" articles (NIS2 Art 27, AI Act Arts 5/22/26/51, GDPR Art 26) directly against `scorer.py` source. Conclusion: no code changes needed — all six already extract maximum available signal from existing profile fields and correctly return `unknown` only where the missing data is a genuine gap (belonging to Phase 5). Avoids fabricating unfounded heuristics.
+
+### Phase 5 — Tier A onboarding fields (33 new fields)
+
+Added 33 new fields to `Step6Form.tsx` and wired them into `scorer.py`. No Alembic migration (all go inside existing JSONB columns). Fields added:
+
+**GDPR (14):** `has_erasure_process`, `has_restriction_process`, `has_portability_process`, `has_marketing_objection_process`, `uses_automated_decisions`, `has_joint_controllers`, `is_public_authority`, `processes_employee_data`, `processes_for_research`, `special_category_condition`, `transfer_destination_countries`, `derogation_types`, `has_bcr`, `has_public_incident_notification`
+
+**NIS2 (9, all conditional on `nis2InScope`):** `has_vulnerability_disclosure_policy`, `management_approved_security_measures`, `has_cyber_awareness_training`, `uses_encryption`, `has_asset_inventory`, `participates_in_info_sharing`, `uses_certified_products`, `nis2_registration_complete`, `has_public_incident_notification`
+
+**AI Act (10):** `has_ai_literacy_training`, `is_public_body`, `uses_chatbot`, `uses_synthetic_content`, `uses_emotion_recognition`, `has_ai_complaint_process`, `has_ai_explanation_process`, `prohibited_practice_flags`, `gpai_flops_above_threshold`, `has_gpai_eu_representative`
+
+Scorer changes: ~15 new branches added, 4 existing branches updated/replaced (GDPR Art 22 now reads `uses_automated_decisions` not AI Act data; Art 5 AI Act now reads `prohibited_practice_flags`; NIS2 Art 27 now resolves to met/not_met from `nis2_registration_complete`; AI Act Art 51 factors in `gpai_flops_above_threshold`).
+
+Gotcha: `prohibited_practice_flags` `None` (not answered) vs `[]` (explicitly none) must be distinguished. `self.ai.get("prohibited_practice_flags") or []` turns `None` into `[]` and returns `met` incorrectly. Fixed by checking `is None` explicitly first.
+
+475/475 policy-engine tests pass after rebuild.
+
+### Phase 6 — Guardrail lint script
+
+Created `packages/common/scripts/lint_profile_fields.py`: walks AST of all 3 seed files, extracts every `profile_field` value, validates against hardcoded allowlist of valid dot-notation paths (top-level `ProfileCreate` fields + JSONB sub-key allowlists for gdpr_data/nis2_data/ai_act_data). Fails with exit code 1 on any dangling reference.
+
+Added `make lint-fields` target + wired into `make test` so it runs as part of CI.
+
+### Key Decisions
+
+- Full NIS2 front-block re-audit chosen over "back-block only now, defer rest" — one pass of technical debt is better than compounding partial fixes
+- Art. 12 duplicate: DB6 (fuller content) kept, DB11 merged and deleted
+- Art. 24 duplicate: DB19 deleted, DB24 (correctly-numbered slot) kept
+- Phase 4: no code changes — honest `unknown` where data is genuinely missing is correct, not a bug to paper over
+- Phase 5 decision: "All 30 fields, one pass" + "Extend existing Step6Form sub-sections"
+- Lint script uses AST-level parsing (not regex) to extract field values — handles multiline dicts and string concatenation correctly
+
+### Next
+
+Sprint 5 MVP Hardening: COM-124 (Playwright E2E), COM-125 (error handling audit), COM-126 (perf baselines), COM-127 (prod deploy), COM-128 (security checklist).
