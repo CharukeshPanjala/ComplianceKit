@@ -198,8 +198,9 @@ export async function triggerAllApplicableAssessments(
 ): Promise<TriggerAssessmentResponse[]> {
   const regulations: RegulationName[] = ["GDPR"];
 
-  const nis2Sectors = (profile.nis2_data?.nis2_sectors as string[] | undefined) ?? [];
-  if (nis2Sectors.length > 0) regulations.push("NIS2");
+  const nis2Sectors = (profile.nis2_data?.sectors as string[] | undefined) ?? [];
+  const nis2Applicable = nis2Sectors.length > 0 && nis2Sectors[0] !== "not_applicable";
+  if (nis2Applicable) regulations.push("NIS2");
 
   if (profile.ai_act_data?.uses_ai === true) regulations.push("EU_AI_ACT");
 

@@ -202,6 +202,19 @@ async def get_latest_assessments(
     regulations = ["GDPR", "NIS2", "EU_AI_ACT"]
     results = []
 
+    profile_result = await session.execute(
+        select(CompanyProfile).where(CompanyProfile.tenant_id == claims.tenant_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+
+    def _is_applicable(reg_name: str) -> bool:
+        if reg_name == "NIS2":
+            sectors = (profile.nis2_data or {}).get("sectors", []) if profile else []
+            return bool(sectors) and sectors != ["not_applicable"]
+        if reg_name == "EU_AI_ACT":
+            return bool((profile.ai_act_data or {}).get("uses_ai")) if profile else False
+        return True
+
     for reg_name in regulations:
         reg_result = await session.execute(
             select(Regulation).where(Regulation.name == reg_name)
@@ -230,7 +243,9 @@ async def get_latest_assessments(
             "not_met_rules": assessment.not_met_rules if assessment else None,
             "unknown_rules": assessment.unknown_rules if assessment else None,
             "completed_at": assessment.completed_at if assessment else None,
-            "status": assessment.status if assessment else "never_run",
+            "status": assessment.status
+            if assessment
+            else ("never_run" if _is_applicable(reg_name) else "not_applicable"),
         })
 
     return {"assessments": results}
