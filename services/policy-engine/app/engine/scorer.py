@@ -201,12 +201,59 @@ class Scorer:
                 return self._result(rule, "unknown", {"reason": "legal_authority_requires_verification"})
             return self._result(rule, "met", {"criminal_conviction_data": False})
 
-        # Art. 22 — Automated decisions
+        # Art. 17 — Erasure (right to be forgotten)
+        if n == 17:
+            has_erasure = self.gdpr.get("has_erasure_process")
+            if has_erasure is True:
+                return self._result(rule, "met", {"has_erasure_process": True})
+            if has_erasure is False:
+                return self._result(rule, "not_met", {"has_erasure_process": False})
+            return self._result(rule, "unknown", {"has_erasure_process": None})
+
+        # Art. 18 — Restriction of processing
+        if n == 18:
+            has_restriction = self.gdpr.get("has_restriction_process")
+            if has_restriction is True:
+                return self._result(rule, "met", {"has_restriction_process": True})
+            if has_restriction is False:
+                return self._result(rule, "not_met", {"has_restriction_process": False})
+            return self._result(rule, "unknown", {"has_restriction_process": None})
+
+        # Art. 20 — Data portability
+        if n == 20:
+            has_portability = self.gdpr.get("has_portability_process")
+            if has_portability is True:
+                return self._result(rule, "met", {"has_portability_process": True})
+            if has_portability is False:
+                return self._result(rule, "not_met", {"has_portability_process": False})
+            return self._result(rule, "unknown", {"reason": "portability_mechanism_requires_technical_verification"})
+
+        # Art. 21 — Right to object
+        if n == 21:
+            has_objection = self.gdpr.get("has_marketing_objection_process")
+            if has_objection is True:
+                return self._result(rule, "met", {"has_marketing_objection_process": True})
+            if has_objection is False:
+                return self._result(rule, "not_met", {"has_marketing_objection_process": False})
+            return self._result(rule, "unknown", {"has_marketing_objection_process": None})
+
+        # Art. 22 — Automated decisions (GDPR-specific)
         if n == 22:
-            uses_ai = self.ai.get("uses_ai")
-            if uses_ai:
+            uses_automated = self.gdpr.get("uses_automated_decisions")
+            if uses_automated is True:
                 return self._result(rule, "unknown", {"reason": "human_oversight_mechanism_requires_verification"})
-            return self._result(rule, "met", {"uses_ai": False})
+            if uses_automated is False:
+                return self._result(rule, "met", {"uses_automated_decisions": False})
+            return self._result(rule, "unknown", {"uses_automated_decisions": None})
+
+        # Art. 26 — Joint controllers
+        if n == 26:
+            has_joint = self.gdpr.get("has_joint_controllers")
+            if has_joint is True:
+                return self._result(rule, "unknown", {"has_joint_controllers": True, "reason": "joint_controller_arrangement_requires_verification"})
+            if has_joint is False:
+                return self._result(rule, "met", {"has_joint_controllers": False})
+            return self._result(rule, "unknown", {"has_joint_controllers": None})
 
         # Art. 28 — Processor DPA
         if n == 28:
@@ -236,12 +283,15 @@ class Scorer:
         # Arts. 37/38/39 — DPO
         if n in {37, 38, 39}:
             has_dpo = self.has_compliance_officer
+            is_public_auth = self.gdpr.get("is_public_authority")
             if has_dpo is True:
                 dpo_name = self.profile.get("dpo_name")
                 dpo_email = self.profile.get("dpo_email")
                 if dpo_name and dpo_email:
                     return self._result(rule, "met", {"has_compliance_officer": True})
                 return self._result(rule, "partial", {"has_compliance_officer": True, "dpo_details_incomplete": True})
+            if is_public_auth is True:
+                return self._result(rule, "not_met", {"is_public_authority": True, "has_compliance_officer": False})
             if has_dpo is False:
                 return self._result(rule, "unknown", {
                     "has_compliance_officer": False,
@@ -280,9 +330,23 @@ class Scorer:
                 return self._result(rule, "unknown", {"reason": "third_party_register_requires_verification"})
             return self._result(rule, "met", {"uses_data_processors": False})
 
-        # Art. 20 — Data portability
-        if n == 20:
-            return self._result(rule, "unknown", {"reason": "portability_mechanism_requires_technical_verification"})
+        # Art. 88 — Employee data
+        if n == 88:
+            processes_employee = self.gdpr.get("processes_employee_data")
+            if processes_employee is True:
+                return self._result(rule, "unknown", {"processes_employee_data": True, "reason": "national_employment_law_obligations_require_verification"})
+            if processes_employee is False:
+                return self._result(rule, "met", {"processes_employee_data": False})
+            return self._result(rule, "unknown", {"processes_employee_data": None})
+
+        # Art. 89 — Research/statistics
+        if n == 89:
+            processes_research = self.gdpr.get("processes_for_research")
+            if processes_research is True:
+                return self._result(rule, "unknown", {"processes_for_research": True, "reason": "research_safeguards_require_verification"})
+            if processes_research is False:
+                return self._result(rule, "met", {"processes_for_research": False})
+            return self._result(rule, "unknown", {"processes_for_research": None})
 
         # Default for GDPR profile_field rules we haven't explicitly handled
         return self._result(rule, "unknown", {"reason": "evaluation_logic_not_yet_implemented"})
@@ -307,9 +371,69 @@ class Scorer:
                 return self._result(rule, "not_met", {"has_incident_response_plan": False})
             return self._result(rule, "unknown", {"has_incident_response_plan": None})
 
+        # NIS2 Art. 12 — Vulnerability disclosure policy
+        if n == 12:
+            has_vdp = self.nis2.get("has_vulnerability_disclosure_policy")
+            if has_vdp is True:
+                return self._result(rule, "met", {"has_vulnerability_disclosure_policy": True})
+            if has_vdp is False:
+                return self._result(rule, "not_met", {"has_vulnerability_disclosure_policy": False})
+            return self._result(rule, "unknown", {"has_vulnerability_disclosure_policy": None})
+
+        # NIS2 Art. 20 — Governance (management approval)
+        if n == 20:
+            mgmt_approved = self.nis2.get("management_approved_security_measures")
+            if mgmt_approved is True:
+                return self._result(rule, "met", {"management_approved_security_measures": True})
+            if mgmt_approved is False:
+                return self._result(rule, "not_met", {"management_approved_security_measures": False})
+            return self._result(rule, "unknown", {"management_approved_security_measures": None})
+
+        # NIS2 Art. 21 — Risk management measures
+        if n == 21:
+            has_mfa = self.nis2.get("has_mfa")
+            has_training = self.nis2.get("has_cyber_awareness_training")
+            uses_enc = self.nis2.get("uses_encryption")
+            has_assets = self.nis2.get("has_asset_inventory")
+            has_bcp = self.nis2.get("has_business_continuity_plan")
+            has_scm = self.nis2.get("assesses_supply_chain")
+            measures = [has_mfa, has_training, uses_enc, has_assets, has_bcp, has_scm]
+            true_count = sum(1 for m in measures if m is True)
+            false_count = sum(1 for m in measures if m is False)
+            if true_count == len(measures):
+                return self._result(rule, "met", {"all_risk_measures": True})
+            if true_count >= 4:
+                return self._result(rule, "partial", {"measures_met": true_count, "measures_total": len(measures)})
+            if false_count >= 3:
+                return self._result(rule, "not_met", {"measures_met": true_count, "measures_total": len(measures)})
+            return self._result(rule, "unknown", {"measures_met": true_count, "reason": "insufficient_data_to_evaluate"})
+
+        # NIS2 Art. 24 — Certified products
+        if n == 24:
+            certified = self.nis2.get("uses_certified_products")
+            if certified is True:
+                return self._result(rule, "met", {"uses_certified_products": True})
+            if certified is False:
+                return self._result(rule, "partial", {"uses_certified_products": False, "reason": "certification_encouraged_not_yet_mandatory"})
+            return self._result(rule, "unknown", {"uses_certified_products": None})
+
         # NIS2 Art. 27 — Registration
         if n == 27:
+            registered = self.nis2.get("nis2_registration_complete")
+            if registered is True:
+                return self._result(rule, "met", {"nis2_registration_complete": True})
+            if registered is False:
+                return self._result(rule, "not_met", {"nis2_registration_complete": False})
             return self._result(rule, "unknown", {"reason": "nis2_registration_requires_verification"})
+
+        # NIS2 Art. 29 — Information sharing
+        if n == 29:
+            participates = self.nis2.get("participates_in_info_sharing")
+            if participates is True:
+                return self._result(rule, "met", {"participates_in_info_sharing": True})
+            if participates is False:
+                return self._result(rule, "partial", {"participates_in_info_sharing": False, "reason": "participation_is_voluntary"})
+            return self._result(rule, "unknown", {"participates_in_info_sharing": None})
 
         # Default for NIS2 profile_field rules we haven't explicitly handled
         return self._result(rule, "unknown", {"reason": "evaluation_logic_not_yet_implemented"})
@@ -326,12 +450,24 @@ class Scorer:
                 "ai_role": role,
             })
 
+        # EU AI Act Art. 4 — AI literacy
+        if n == 4:
+            has_literacy = self.ai.get("has_ai_literacy_training")
+            if has_literacy is True:
+                return self._result(rule, "met", {"has_ai_literacy_training": True})
+            if has_literacy is False:
+                return self._result(rule, "not_met", {"has_ai_literacy_training": False})
+            return self._result(rule, "unknown", {"has_ai_literacy_training": None})
+
         # EU AI Act Art. 5 — Prohibited practices
         if n == 5:
-            # We can't verify prohibited practices without detailed AI audit
-            return self._result(rule, "unknown", {
-                "reason": "prohibited_practices_require_ai_system_audit",
-            })
+            flags = self.ai.get("prohibited_practice_flags")
+            if flags is None:
+                return self._result(rule, "unknown", {"reason": "prohibited_practices_require_ai_system_audit"})
+            active = [f for f in flags if f != "none"]
+            if active:
+                return self._result(rule, "not_met", {"prohibited_practices_flagged": active})
+            return self._result(rule, "met", {"prohibited_practices": "none_selected"})
 
         # EU AI Act Art. 6 — High-risk classification
         if n == 6:
@@ -351,6 +487,16 @@ class Scorer:
                 "reason": "eu_representative_appointment_requires_verification",
             })
 
+        # EU AI Act Art. 27 — Deployers that are public bodies
+        if n == 27:
+            is_public = self.ai.get("is_public_body")
+            high_risk = self.ai.get("high_risk_ai_categories") or []
+            if not is_public:
+                return self._result(rule, "met", {"is_public_body": False, "reason": "obligations_not_applicable"})
+            if is_public and high_risk:
+                return self._result(rule, "unknown", {"is_public_body": True, "reason": "public_body_high_risk_obligations_require_verification"})
+            return self._result(rule, "met", {"is_public_body": True, "no_high_risk_ai": True})
+
         # EU AI Act Art. 26 — Deployer obligations
         if n == 26:
             role = self.ai.get("ai_role") or ""
@@ -361,12 +507,58 @@ class Scorer:
                 return self._result(rule, "met", {"ai_role": role, "no_high_risk_ai": True})
             return self._result(rule, "met", {"deployer_obligations": "not_applicable"})
 
+        # EU AI Act Art. 50 — Transparency obligations
+        if n == 50:
+            uses_chatbot = self.ai.get("uses_chatbot")
+            uses_synthetic = self.ai.get("uses_synthetic_content")
+            uses_emotion = self.ai.get("uses_emotion_recognition")
+            if not any([uses_chatbot, uses_synthetic, uses_emotion]):
+                return self._result(rule, "met", {"transparency_obligations": "not_applicable"})
+            return self._result(rule, "unknown", {"reason": "transparency_disclosure_implementation_requires_verification"})
+
         # EU AI Act Art. 51 — GPAI systemic risk
         if n == 51:
             gpai = self.ai.get("uses_gpai")
-            if gpai:
-                return self._result(rule, "unknown", {"reason": "gpai_systemic_risk_requires_compute_verification"})
-            return self._result(rule, "met", {"uses_gpai": False})
+            flops = self.ai.get("gpai_flops_above_threshold")
+            if not gpai:
+                return self._result(rule, "met", {"uses_gpai": False})
+            if gpai and flops is True:
+                return self._result(rule, "not_met", {"uses_gpai": True, "gpai_flops_above_threshold": True, "reason": "systemic_risk_obligations_apply"})
+            if gpai and flops is False:
+                return self._result(rule, "met", {"uses_gpai": True, "gpai_flops_above_threshold": False})
+            return self._result(rule, "unknown", {"reason": "gpai_systemic_risk_requires_compute_verification"})
+
+        # EU AI Act Art. 54 — Authorised representatives of providers of GPAI models with systemic risk
+        if n == 54:
+            uses_gpai = self.ai.get("uses_gpai")
+            ai_role = self.ai.get("ai_role") or ""
+            if uses_gpai is None:
+                return self._result(rule, "unknown", {"reason": "gpai_usage_not_answered"})
+            if not uses_gpai:
+                return self._result(rule, "met", {"reason": "does_not_use_gpai"})
+            if ai_role in ("provider", "multiple"):
+                has_rep = self.ai.get("has_gpai_eu_representative")
+                if has_rep is True:
+                    return self._result(rule, "met", {"gpai_eu_representative": True})
+                if has_rep is False:
+                    return self._result(rule, "not_met", {"gpai_eu_representative": False})
+                return self._result(rule, "unknown", {"reason": "gpai_eu_representative_not_answered"})
+            return self._result(rule, "met", {"reason": "not_a_gpai_provider"})
+
+        # EU AI Act Art. 86 — Right to explanation
+        if n == 86:
+            has_explanation = self.ai.get("has_ai_explanation_process")
+            high_risk = self.ai.get("high_risk_ai_categories") or []
+            role = self.ai.get("ai_role") or ""
+            if "deployer" not in role and role != "multiple":
+                return self._result(rule, "met", {"reason": "not_a_deployer"})
+            if not high_risk or high_risk == ["none"]:
+                return self._result(rule, "met", {"no_high_risk_ai": True})
+            if has_explanation is True:
+                return self._result(rule, "met", {"has_ai_explanation_process": True})
+            if has_explanation is False:
+                return self._result(rule, "not_met", {"has_ai_explanation_process": False})
+            return self._result(rule, "unknown", {"has_ai_explanation_process": None})
 
         # Default for AI Act profile_field rules we haven't explicitly handled
         return self._result(rule, "unknown", {"reason": "evaluation_logic_not_yet_implemented"})

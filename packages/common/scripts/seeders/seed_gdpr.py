@@ -272,7 +272,7 @@ GDPR_ARTICLES = [
     },
     {
         "article": "Article 19", "article_number": 19,
-        "title": "Notification obligation regarding rectification or erasure or restriction",
+        "title": "Notification obligation regarding rectification or erasure of personal data or restriction of processing",
         "chapter": "Chapter III — Rights of the Data Subject", "category": "Data Subject Rights",
         "description": "The controller must communicate any rectification, erasure, or restriction to each recipient to whom the personal data has been disclosed, unless impossible or involving disproportionate effort. The controller must inform the data subject of those recipients upon request.",
         "plain_english": "When you correct, delete, or restrict data, notify all third parties you previously shared that data with.",
@@ -313,9 +313,9 @@ GDPR_ARTICLES = [
         "description": "Data subjects have the right not to be subject to a decision based solely on automated processing, including profiling, that produces legal effects or similarly significantly affects them. Exceptions apply where necessary for contract, authorised by law, or based on explicit consent. In permitted cases, safeguards including human intervention, right to express views, and contest the decision must be provided.",
         "plain_english": "People have the right not to be subject to fully automated decisions with significant effects — if you use automated decision-making, you must offer human review.",
         "severity": Severity.HIGH, "fine_tier": "tier_1", "is_mandatory": True, "check_type": "profile_field",
-        "profile_field": "ai_act_data.uses_ai", "applies_to_b2c": True, "applies_to_b2b": True,
+        "profile_field": "gdpr_data.uses_automated_decisions", "applies_to_b2c": True, "applies_to_b2b": True,
         "applicability_tags": ["GDPR", "automated_decisions", "profiling", "AI"],
-        "evaluation_logic": {"type": "conditional", "condition": "ai_act_data.uses_ai == true", "then": "human_review_mechanism_documented"},
+        "evaluation_logic": {"type": "conditional", "condition": "gdpr_data.uses_automated_decisions == true", "then": "human_review_mechanism_documented"},
         "remediation_hint": "Provide human review options for automated decisions with significant effects. Disclose automated decision-making in your privacy notice.",
     },
     {
