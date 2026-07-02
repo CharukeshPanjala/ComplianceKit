@@ -27,9 +27,9 @@ const styles = {
 };
 
 const REGULATION_HINTS: Record<string, string> = {
-  gdpr: "GDPR Art. 33 — 72-hour notification window to DPA",
-  nis2: "NIS2 Art. 23 — 24-hour notification window to authority",
-  both: "Both apply — 24-hour window (tightest deadline)",
+  gdpr: "GDPR Art. 33: 72-hour notification window to DPA",
+  nis2: "NIS2 Art. 23: 24-hour notification window to authority",
+  both: "Both apply, 24-hour window (tightest deadline)",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────

@@ -264,7 +264,7 @@ export default function Step2Form({ initialData }: Props) {
         <span className="text-sm font-medium text-gray-700">
           Data categories processed <span className="text-red-500">*</span>
         </span>
-        <Tooltip text="⚠️ marked categories are special category data under GDPR Art. 9 — stricter rules apply." />
+        <Tooltip text="⚠️ marked categories are special category data under GDPR Art. 9. Stricter rules apply." />
       </div>
       <div className={styles.grid}>
         {DATA_CATEGORY_OPTIONS.map((opt) => (
@@ -284,7 +284,7 @@ export default function Step2Form({ initialData }: Props) {
       />
       {hasSpecialCategory && (
         <p className={styles.warning}>
-          ⚠️ Special category data detected — stricter obligations apply under GDPR Art. 9
+          ⚠️ Special category data detected. Stricter obligations apply under GDPR Art. 9
         </p>
       )}
       {errors.data_categories_processed && (

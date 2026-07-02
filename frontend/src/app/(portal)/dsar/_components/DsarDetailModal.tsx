@@ -95,7 +95,7 @@ export const DsarDetailModal = ({ dsar, onClose, onSave }: Props) => {
           <div className={styles.titleBlock}>
             <div className={styles.title}>{dsar.request_type_label}</div>
             <div className={styles.subtitle}>
-              {dsar.requester_name ?? dsar.requester_email} · received {dsar.received_at ? new Date(dsar.received_at).toLocaleDateString() : "—"}
+              {dsar.requester_name ?? dsar.requester_email} · received {dsar.received_at ? new Date(dsar.received_at).toLocaleDateString() : "-"}
             </div>
           </div>
           <button className={styles.closeBtn} onClick={onClose}>
@@ -119,7 +119,7 @@ export const DsarDetailModal = ({ dsar, onClose, onSave }: Props) => {
                 <div className={styles.fieldLabel}>Due date</div>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className={styles.fieldValue}>
-                    {dsar.due_date ? new Date(dsar.due_date).toLocaleDateString() : "—"}
+                    {dsar.due_date ? new Date(dsar.due_date).toLocaleDateString() : "-"}
                   </span>
                   <DaysRemainingBadge
                     daysRemaining={dsar.days_remaining}

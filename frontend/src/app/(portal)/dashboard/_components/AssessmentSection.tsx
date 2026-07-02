@@ -43,7 +43,11 @@ const getRegulationFromId = (
 export const AssessmentSection = ({ profile, onViewGaps }: AssessmentSectionProps) => {
   const { data: assessments = [], isLoading } = useLatestAssessments();
   const { mutate: triggerAll } = useTriggerAllAssessments();
-  const { mutate: triggerOne, isPending: isTriggering } = useTriggerAssessment();
+  const {
+    mutate: triggerOne,
+    isPending: isTriggering,
+    variables: triggeringRegulation,
+  } = useTriggerAssessment();
 
   // ── Handlers ─────────────────────────────────────────
 
@@ -70,7 +74,7 @@ export const AssessmentSection = ({ profile, onViewGaps }: AssessmentSectionProp
     <div>
       <h2 className={styles.heading}>Compliance Score</h2>
       <p className={styles.subheading}>
-        Based on your company profile — last assessed{" "}
+        Based on your company profile, last assessed{" "}
         {assessments.find((a) => a.completed_at)
           ? new Date(assessments.find((a) => a.completed_at)!.completed_at!).toLocaleDateString()
           : "never"}
@@ -94,7 +98,7 @@ export const AssessmentSection = ({ profile, onViewGaps }: AssessmentSectionProp
           data={assessment}
           onViewGaps={handleViewGaps}
           onReAssess={() => handleReAssess(assessment.regulation)}
-          isTriggering={isTriggering}
+          isTriggering={isTriggering && triggeringRegulation === assessment.regulation}
         />
       ))}
       {assessments.length === 0 && (

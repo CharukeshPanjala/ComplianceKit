@@ -91,7 +91,7 @@ const EmptyState = ({ hasFilters }: { hasFilters: boolean }) => (
       />
     </svg>
     <p className={styles.emptyTitle}>
-      {hasFilters ? "No gaps match your filters" : "All clear — no gaps found!"}
+      {hasFilters ? "No gaps match your filters" : "All clear, no gaps found!"}
     </p>
     <p className={styles.emptySubtitle}>
       {hasFilters ? "Try adjusting or clearing your filters" : "Your compliance is looking great"}

@@ -34,7 +34,6 @@ const NAV_ITEMS = [
         />
       </svg>
     ),
-    comingSoon: true,
   },
   {
     href: "/ropa",
@@ -125,9 +124,7 @@ const styles = {
     base: "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full",
     active: "bg-white/15 text-white",
     inactive: "text-blue-100 hover:bg-white/10 hover:text-white",
-    disabled: "opacity-40 cursor-not-allowed",
   },
-  badge: "ml-auto text-xs bg-white/10 text-blue-200 px-2 py-0.5 rounded-full",
   footer: "px-4 py-4 border-t border-white/10",
   signOut:
     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 hover:text-white transition-colors w-full",
@@ -177,16 +174,6 @@ export const Sidebar = () => {
 
   const renderNavItem = (item: (typeof NAV_ITEMS)[0]) => {
     const isActive = pathname === item.href;
-
-    if (item.comingSoon) {
-      return (
-        <div key={item.href} className={`${styles.item.base} ${styles.item.disabled}`}>
-          {item.icon}
-          <span>{item.label}</span>
-          <span className={styles.badge}>Soon</span>
-        </div>
-      );
-    }
 
     return (
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

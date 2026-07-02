@@ -59,7 +59,7 @@ export default function DsarPage() {
 
   const handleCreate = async (body: DsarCreateRequest) => {
     await create.mutateAsync(body);
-    toast.success("DSAR request logged — 30-day clock started");
+    toast.success("DSAR request logged, 30-day clock started");
   };
 
   const handleUpdate = async (dsarId: string, body: DsarUpdateRequest) => {

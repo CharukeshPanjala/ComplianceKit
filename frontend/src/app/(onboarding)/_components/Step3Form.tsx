@@ -249,7 +249,7 @@ export default function Step3Form({ initialData }: Props) {
     if (categories.length === 0) {
       return (
         <p className="py-4 text-sm text-gray-400 italic">
-          No tools found for &ldquo;{searchQuery}&rdquo; — add it as a custom tool below.
+          No tools found for &ldquo;{searchQuery}&rdquo;. Add it as a custom tool below.
         </p>
       );
     }

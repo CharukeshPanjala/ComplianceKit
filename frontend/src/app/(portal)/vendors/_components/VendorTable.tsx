@@ -70,7 +70,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
   // ── Render helpers ────────────────────────────────────────────────────────
 
   const renderRiskBadge = (risk: string | null) => {
-    if (!risk) return <span className={`${styles.riskBadge.base} ${styles.riskBadge.unknown}`}>—</span>;
+    if (!risk) return <span className={`${styles.riskBadge.base} ${styles.riskBadge.unknown}`}>-</span>;
     const cls = risk === "high" ? styles.riskBadge.high : risk === "medium" ? styles.riskBadge.medium : styles.riskBadge.low;
     return <span className={`${styles.riskBadge.base} ${cls}`}>{risk.charAt(0).toUpperCase() + risk.slice(1)}</span>;
   };
@@ -95,7 +95,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
     );
 
   const renderTransfer = (mechanism: string | null) => {
-    if (!mechanism || mechanism === "none") return <span className="text-gray-400 text-xs">—</span>;
+    if (!mechanism || mechanism === "none") return <span className="text-gray-400 text-xs">-</span>;
     const labels: Record<string, string> = {
       scc: "SCC",
       bcr: "BCR",
@@ -115,7 +115,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
           </a>
         )}
       </td>
-      <td className={styles.td}>{p.category ?? "—"}</td>
+      <td className={styles.td}>{p.category ?? "-"}</td>
       <td className={styles.td}>{renderRiskBadge(p.risk_level)}</td>
       <td className={styles.td}>{renderDpa(p.dpa_signed)}</td>
       <td className={styles.td}>{renderTransfer(p.transfer_mechanism)}</td>
@@ -157,7 +157,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
             {processors.length === 0 ? (
               <tr>
                 <td colSpan={7} className={styles.emptyRow}>
-                  No vendors yet — generate from your tech stack to get started.
+                  No vendors yet. Generate from your tech stack to get started.
                 </td>
               </tr>
             ) : (

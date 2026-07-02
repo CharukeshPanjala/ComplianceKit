@@ -180,7 +180,7 @@ export const GeneratePolicyModal = ({
             <span className={`${styles.severityDot} ${SEVERITY_DOT[gap.severity ?? "low"]}`} />
             <span className={styles.gapText}>
               <span className={styles.gapArticle}>{gap.article}</span>
-              {gap.title && <span className={styles.gapTitle}> — {gap.title}</span>}
+              {gap.title && <span className={styles.gapTitle}>: {gap.title}</span>}
             </span>
           </label>
         ))}

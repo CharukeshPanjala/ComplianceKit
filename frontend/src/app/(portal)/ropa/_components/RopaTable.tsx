@@ -150,10 +150,10 @@ export const RopaTable = ({ entries }: RopaTableProps) => {
                   )}
                 </td>
                 <td className={styles.td}>
-                  {LEGAL_BASIS_LABELS[entry.legal_basis ?? ""] ?? entry.legal_basis ?? "—"}
+                  {LEGAL_BASIS_LABELS[entry.legal_basis ?? ""] ?? entry.legal_basis ?? "-"}
                 </td>
                 <td className={styles.td}>
-                  {entry.data_categories?.slice(0, 3).join(", ") ?? "—"}
+                  {entry.data_categories?.slice(0, 3).join(", ") ?? "-"}
                   {(entry.data_categories?.length ?? 0) > 3 && (
                     <span className="text-gray-400"> +{(entry.data_categories?.length ?? 0) - 3}</span>
                   )}

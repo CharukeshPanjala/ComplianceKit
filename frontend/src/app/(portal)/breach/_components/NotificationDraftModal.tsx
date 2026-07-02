@@ -57,7 +57,7 @@ export const NotificationDraftModal = ({ draft, onClose }: Props) => {
             <div className={styles.subject}>{draft.subject}</div>
           </div>
           <div>
-            <div className={styles.label}>Body — edit before sending</div>
+            <div className={styles.label}>Body (edit before sending)</div>
             <textarea
               className={styles.textarea}
               rows={20}
