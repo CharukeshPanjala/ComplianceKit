@@ -152,6 +152,13 @@ const useAssessmentPolling = (assessmentId: string | null, initialStatus: string
   const [status, setStatus] = useState(initialStatus);
   const [elapsed, setElapsed] = useState(0);
 
+  // Reset whenever a new assessment starts (e.g. re-assess) — initialStatus only
+  // applies on mount otherwise, leaving stale "completed" state from the prior run.
+  useEffect(() => {
+    setStatus(initialStatus);
+    setElapsed(0);
+  }, [assessmentId, initialStatus]);
+
   const isPolling = !!assessmentId && (status === "pending" || status === "running");
 
   useEffect(() => {
