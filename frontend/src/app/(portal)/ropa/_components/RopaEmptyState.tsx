@@ -6,9 +6,9 @@
 const styles = {
   wrapper: "flex flex-col items-center justify-center py-24 px-6 text-center",
   icon: "w-16 h-16 text-gray-200 mx-auto mb-6",
-  title: "text-xl font-bold text-gray-800 mb-2",
-  subtitle: "text-sm text-gray-500 max-w-md mb-8",
-  btn: "px-6 py-3 bg-[#0F2044] text-white text-sm font-semibold rounded-xl hover:bg-[#1a3366] transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+  title: "text-xl font-bold text-[#0F172A] mb-2",
+  subtitle: "text-sm text-[#64748B] max-w-md mb-8",
+  btn: "px-6 py-3 bg-[#D97706] text-white text-sm font-semibold rounded-xl hover:bg-[#B45309] transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
   spinner: "w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin",
 };
 

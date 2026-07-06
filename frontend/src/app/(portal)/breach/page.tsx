@@ -14,7 +14,7 @@ const styles = {
   header: "flex items-start justify-between mb-6",
   heading: "text-2xl font-bold text-gray-900",
   subheading: "text-sm text-gray-500 mt-0.5",
-  reportBtn: "flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors",
+  reportBtn: "flex items-center gap-2 px-4 py-2 bg-[#D97706] hover:bg-[#B45309] text-white text-sm font-medium rounded-lg transition-colors",
   statsRow: "grid grid-cols-4 gap-4 mb-6",
   statCard: "bg-white rounded-xl border border-gray-100 shadow-sm p-4",
   statValue: "text-2xl font-bold text-gray-900",
@@ -24,7 +24,7 @@ const styles = {
   emptyState: "flex flex-col items-center justify-center py-24 text-center",
   emptyTitle: "text-lg font-semibold text-gray-800 mb-2",
   emptyText: "text-sm text-gray-500 max-w-sm mb-6",
-  emptyCta: "flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors",
+  emptyCta: "flex items-center gap-2 px-5 py-2.5 bg-[#D97706] hover:bg-[#B45309] text-white text-sm font-medium rounded-lg transition-colors",
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -86,19 +86,19 @@ export default function BreachPage() {
     <div className={styles.statsRow}>
       <div className={styles.statCard}>
         <div className={styles.statValue}>{openCount}</div>
-        <div className={styles.statLabel}>Open incidents</div>
+        <div className={styles.statLabel}>Total Incidents</div>
       </div>
       <div className={styles.statCard}>
         <div className={`${styles.statValue} ${overdueCount > 0 ? "text-red-600" : ""}`}>{overdueCount}</div>
-        <div className={styles.statLabel}>Overdue notifications</div>
+        <div className={styles.statLabel}>Open</div>
       </div>
       <div className={styles.statCard}>
         <div className={`${styles.statValue} ${criticalCount > 0 ? "text-orange-600" : ""}`}>{criticalCount}</div>
-        <div className={styles.statLabel}>High / critical</div>
+        <div className={styles.statLabel}>Under Investigation</div>
       </div>
       <div className={styles.statCard}>
         <div className={styles.statValue}>{closedCount}</div>
-        <div className={styles.statLabel}>Closed</div>
+        <div className={styles.statLabel}>Resolved</div>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import { DsarDetailModal } from "./DsarDetailModal";
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = {
-  wrapper: "overflow-x-auto rounded-xl border border-gray-100 shadow-sm",
+  wrapper: "bg-white overflow-x-auto rounded-xl border border-gray-100 shadow-sm",
   table: "w-full text-sm",
   thead: "bg-gray-50 border-b border-gray-100",
   th: "px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap",
@@ -41,6 +41,26 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const TERMINAL = new Set(["completed", "rejected", "withdrawn"]);
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+const WorkflowDots = ({ status }: { status: string }) => {
+  const stepIndex = status === "pending" ? 0 : status === "in_progress" ? 1 : 2;
+  return (
+    <div className="flex items-center gap-1">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-1">
+          <div
+            className={`w-2.5 h-2.5 rounded-full ${
+              i < stepIndex ? "bg-green-500" : i === stepIndex ? "bg-[#D97706]" : "bg-gray-200"
+            }`}
+          />
+          {i < 2 && <div className="w-4 h-px bg-gray-200" />}
+        </div>
+      ))}
+    </div>
+  );
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -79,7 +99,12 @@ export const DsarTable = ({ dsars, onUpdate, onDelete }: Props) => {
             isTerminal={isTerminal}
           />
         </td>
-        <td className={styles.td}>{renderStatus(d.status)}</td>
+        <td className={styles.td}>
+          <div className="flex flex-col gap-1.5">
+            {renderStatus(d.status)}
+            <WorkflowDots status={d.status ?? "pending"} />
+          </div>
+        </td>
         <td className={styles.td}>
           {d.identity_verified ? (
             <span className={styles.idBadge}>

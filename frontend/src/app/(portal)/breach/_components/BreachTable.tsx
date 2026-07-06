@@ -9,7 +9,7 @@ import { NotificationDraftModal } from "./NotificationDraftModal";
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = {
-  wrapper: "overflow-x-auto rounded-xl border border-gray-100 shadow-sm",
+  wrapper: "overflow-x-auto rounded-xl border border-gray-100 shadow-sm bg-white",
   table: "w-full text-sm",
   thead: "bg-gray-50 border-b border-gray-100",
   th: "px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap",
@@ -75,6 +75,17 @@ export const BreachTable = ({ breaches, onUpdate, onDelete, onDraft }: Props) =>
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
+  const renderStatusBadge = (status: string | null) => {
+    const s = (status ?? "draft").toLowerCase();
+    if (s === "draft") {
+      return <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">Open</span>;
+    }
+    if (s === "under_investigation") {
+      return <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Under Investigation</span>;
+    }
+    return <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">Resolved</span>;
+  };
+
   const renderSeverity = (severity: string | null) => {
     if (!severity) return null;
     const cls = styles.severityBadge[severity as keyof typeof styles.severityBadge] ?? styles.severityBadge.medium;
@@ -92,7 +103,7 @@ export const BreachTable = ({ breaches, onUpdate, onDelete, onDraft }: Props) =>
       </td>
       <td className={styles.td}>{renderSeverity(b.severity)}</td>
       <td className={styles.td}>
-        {b.discovered_at && (
+        {b.discovered_at && b.status !== "closed" && (
           <CountdownBadge
             deadlineAt={b.deadline_at}
             hoursWindow={b.deadline_hours}
@@ -101,22 +112,25 @@ export const BreachTable = ({ breaches, onUpdate, onDelete, onDraft }: Props) =>
         )}
       </td>
       <td className={styles.td}>
-        <select
-          className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-          value={b.status ?? "draft"}
-          onChange={(e) => handleStatusChange(b, e.target.value)}
-        >
-          <option value="draft">Draft</option>
-          <option value="under_investigation">Investigating</option>
-          <option value="reported_to_dpa">Reported to DPA</option>
-          <option value="reported_to_individuals">Individuals notified</option>
-          <option value="closed">Closed</option>
-        </select>
+        <div className="flex flex-col gap-1.5">
+          {renderStatusBadge(b.status)}
+          <select
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            value={b.status ?? "draft"}
+            onChange={(e) => handleStatusChange(b, e.target.value)}
+          >
+            <option value="draft">Draft</option>
+            <option value="under_investigation">Investigating</option>
+            <option value="reported_to_dpa">Reported to DPA</option>
+            <option value="reported_to_individuals">Individuals notified</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
       </td>
       <td className={styles.td}>
         <div className="flex items-center gap-2">
           <button
-            className={`${styles.actionBtn} ${styles.draftBtn}`}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs rounded-md px-2.5 py-1 font-medium hover:from-purple-700 hover:to-pink-700 transition-all"
             onClick={() => handleDraft(b)}
             disabled={drafting === b.breach_id}
           >

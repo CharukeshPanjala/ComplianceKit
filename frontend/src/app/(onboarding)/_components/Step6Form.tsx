@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -86,7 +86,7 @@ const LAWFUL_BASIS_OPTIONS = [
   { value: "legal_obligation", label: "Legal obligation - Art. 6(1)(c)" },
   { value: "vital_interests", label: "Vital interests - Art. 6(1)(d)" },
   { value: "public_task", label: "Public task - Art. 6(1)(e)" },
-  { value: "legitimate_interest", label: "Legitimate interest - Art. 6(1)(f)" },
+  { value: "legitimate_interests", label: "Legitimate interest - Art. 6(1)(f)" },
 ];
 
 const TRANSFER_MECHANISM_OPTIONS = [
@@ -185,6 +185,8 @@ const styles = {
   labelRow: "flex items-center gap-1.5 mb-2",
   nav: "flex justify-between mt-8",
   divider: "border-t border-gray-100 my-6",
+  textarea: "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-navy focus:outline-none",
+  error: "mt-4 text-sm text-red-600",
 };
 
 // ── Props ─────────────────────────────────────────────────
@@ -291,6 +293,74 @@ export default function Step6Form({ initialData }: Props) {
     "health", "biometric", "genetic", "racial_ethnic",
     "political", "religious", "trade_union", "sexual_orientation",
   ].some((c) => specialCategoryDataCategories.has(c));
+
+  // ── Live rules panel sync ──────────────────────────────────
+  useEffect(() => {
+    const gdprRules: string[] = ["Art.5", "Art.6"];
+    if (lawfulBases.includes("consent")) gdprRules.push("Art.7");
+    if (hasSpecialCategoryData) gdprRules.push("Art.9");
+    gdprRules.push("Art.17", "Art.18", "Art.20", "Art.21");
+    if (watch("uses_automated_decisions")) gdprRules.push("Art.22");
+    gdprRules.push("Art.30", "Art.32", "Art.33", "Art.34", "Art.35");
+    if (watch("is_public_authority")) gdprRules.push("Art.37", "Art.38", "Art.39");
+    if (transfersOutsideEea) gdprRules.push("Art.44", "Art.45", "Art.46");
+    if (transferMechanisms.includes("bcrs") || watch("has_bcr")) gdprRules.push("Art.47");
+    if (derogationTypes.length > 0) gdprRules.push("Art.49");
+
+    const nis2Rules: string[] = [];
+    if (nis2InScope) {
+      nis2Rules.push("Art.18", "Art.20", "Art.21", "Art.23");
+      if (watch("uses_certified_products")) nis2Rules.push("Art.24");
+      if (watch("has_vulnerability_disclosure_policy")) nis2Rules.push("Art.12");
+      if (watch("participates_in_info_sharing")) nis2Rules.push("Art.29");
+      if (watch("nis2_registration_complete")) nis2Rules.push("Art.27");
+    }
+
+    const aiRules: string[] = [];
+    if (usesAi) {
+      aiRules.push("Art.6", "Art.13", "Art.14");
+      if (highRiskCategories.length > 0 && !highRiskCategories.includes("none")) {
+        aiRules.push("Art.9", "Art.10", "Art.11", "Art.12", "Art.15", "Art.17", "Art.43");
+        if (aiRole === "deployer" || aiRole === "both") aiRules.push("Art.26");
+      }
+      if (watch("uses_chatbot") || watch("uses_synthetic_content") || watch("uses_emotion_recognition")) {
+        aiRules.push("Art.50");
+      }
+      if (watch("has_ai_explanation_process")) aiRules.push("Art.86");
+      if (usesGpai) {
+        aiRules.push("Art.51", "Art.52", "Art.53");
+        if (aiRole === "provider" || aiRole === "both") aiRules.push("Art.54", "Art.55");
+      }
+    }
+
+    const gdprCount = Math.min(gdprRules.length, 5);
+    const nis2Count = Math.min(nis2Rules.length, 5);
+    const aiCount = Math.min(aiRules.length, 4);
+
+    const allActive = [...new Set([...gdprRules, ...nis2Rules, ...aiRules])];
+    const reg = nis2InScope && nis2Rules.length >= gdprRules.length
+      ? "NIS2"
+      : usesAi && aiRules.length >= gdprRules.length
+      ? "AI_ACT"
+      : "GDPR";
+
+    const payload = {
+      activeRuleIds: allActive,
+      regulation: reg,
+      trackProgress: { gdpr: gdprCount, nis2: nis2Count, aiAct: aiCount },
+    };
+
+    try {
+      sessionStorage.setItem("ck_live_rules", JSON.stringify(payload));
+      window.dispatchEvent(new Event("ck:rules-update"));
+    } catch {
+      // ignore
+    }
+  }, [
+    lawfulBases, transfersOutsideEea, transferMechanisms, derogationTypes,
+    nis2Sectors, usesAi, highRiskCategories, aiRole, usesGpai,
+    nis2InScope, hasSpecialCategoryData,
+  ]);
 
   // ── Handlers ──────────────────────────────────────────────
 
@@ -543,7 +613,7 @@ export default function Step6Form({ initialData }: Props) {
 
       <FormField label="Do you make automated decisions that significantly affect individuals (e.g. credit scoring, profiling)?">
         <div className={styles.labelRow}>
-          <Tooltip text="GDPR Art. 22 covers solely automated decisions with significant effects — distinct from general AI use." />
+          <Tooltip text="GDPR Art. 22 covers solely automated decisions with significant effects, distinct from general AI use." />
         </div>
         {renderYesNo(
           watch("uses_automated_decisions"),
@@ -576,7 +646,7 @@ export default function Step6Form({ initialData }: Props) {
 
       <FormField label="Do you process personal data of your own employees?">
         <div className={styles.labelRow}>
-          <Tooltip text="GDPR Art. 88 allows Member States to set specific rules for employee data — your obligations may vary by jurisdiction." />
+          <Tooltip text="GDPR Art. 88 allows Member States to set specific rules for employee data. Your obligations may vary by jurisdiction." />
         </div>
         {renderYesNo(
           watch("processes_employee_data"),
@@ -610,7 +680,7 @@ export default function Step6Form({ initialData }: Props) {
       {hasSpecialCategoryData && (
         <FormField label="What is your legal condition for processing special category data (Art. 9(2))?">
           <div className={styles.labelRow}>
-            <Tooltip text="GDPR Art. 9(2) lists the exhaustive conditions permitting special category data processing — explicit consent is most common." />
+            <Tooltip text="GDPR Art. 9(2) lists the exhaustive conditions permitting special category data processing. Explicit consent is most common." />
           </div>
           <div className={styles.grid}>
             {SPECIAL_CATEGORY_CONDITION_OPTIONS.map((opt) => (
@@ -638,7 +708,7 @@ export default function Step6Form({ initialData }: Props) {
             </div>
             <input
               type="text"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-navy focus:outline-none"
+              className={styles.textarea}
               defaultValue={transferDestinationCountries.join(", ")}
               onChange={(e) => handleTransferCountriesChange(e.target.value)}
               placeholder="e.g. United States, India, Singapore"
@@ -761,7 +831,7 @@ export default function Step6Form({ initialData }: Props) {
 
           <FormField label="Has management/the board formally approved your cybersecurity risk-management measures?">
             <div className={styles.labelRow}>
-              <Tooltip text="NIS2 Art. 20 makes management bodies personally liable for cybersecurity measures — formal approval is required." />
+              <Tooltip text="NIS2 Art. 20 makes management bodies personally liable for cybersecurity measures. Formal approval is required." />
             </div>
             {renderYesNo(
               watch("management_approved_security_measures"),
@@ -1265,7 +1335,7 @@ export default function Step6Form({ initialData }: Props) {
         <div className={styles.divider} />
         {renderAiActSection()}
       </div>
-      {serverError && <p className="mt-4 text-sm text-red-600">{serverError}</p>}
+      {serverError && <p className={styles.error}>{serverError}</p>}
       {renderNavigation()}
     </form>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGaps } from "@/lib/hooks/useGaps";
 import { GapItem } from "./GapItem";
 import { GapListSkeleton } from "@/components/ui/Skeleton";
@@ -19,6 +19,11 @@ interface GapListProps {
   assessmentId: string;
   regulation: RegulationName;
   onGapClick: (gapId: string) => void;
+  externalSearch?: string;
+  externalSeverity?: string;
+  externalStatus?: string;
+  onTotalChange?: (total: number) => void;
+  hideInternalFilters?: boolean;
 }
 
 interface Filters {
@@ -101,7 +106,16 @@ const EmptyState = ({ hasFilters }: { hasFilters: boolean }) => (
 
 // ── Component ─────────────────────────────────────────────
 
-export const GapList = ({ assessmentId, regulation, onGapClick }: GapListProps) => {
+export const GapList = ({
+  assessmentId,
+  regulation,
+  onGapClick,
+  externalSearch,
+  externalSeverity,
+  externalStatus,
+  onTotalChange,
+  hideInternalFilters = false,
+}: GapListProps) => {
   // ── State ────────────────────────────────────────────
 
   const [page, setPage] = useState(0);
@@ -115,9 +129,13 @@ export const GapList = ({ assessmentId, regulation, onGapClick }: GapListProps) 
 
   const offset = page * PAGE_SIZE;
 
+  const effectiveSeverity = externalSeverity !== undefined ? externalSeverity : filters.severity;
+  const effectiveStatus = externalStatus !== undefined ? externalStatus : filters.status;
+  const effectiveSearch = externalSearch !== undefined ? externalSearch : filters.search;
+
   const { data, isLoading, isError, refetch } = useGaps(assessmentId, {
-    severity: filters.severity !== "all" ? filters.severity : undefined,
-    status: filters.status !== "all" ? filters.status : undefined,
+    severity: effectiveSeverity !== "all" && effectiveSeverity !== "" ? effectiveSeverity : undefined,
+    status: effectiveStatus !== "all" && effectiveStatus !== "" ? effectiveStatus : undefined,
     remediation_priority: filters.priority !== "all" ? filters.priority : undefined,
     resolved: filters.resolved === "all" ? undefined : filters.resolved === "true",
     limit: PAGE_SIZE,
@@ -129,18 +147,18 @@ export const GapList = ({ assessmentId, regulation, onGapClick }: GapListProps) 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const hasFilters =
-    filters.severity !== "all" ||
-    filters.status !== "all" ||
+    effectiveSeverity !== "all" && effectiveSeverity !== "" ||
+    effectiveStatus !== "all" && effectiveStatus !== "" ||
     filters.priority !== "all" ||
     filters.resolved !== "false" ||
-    filters.search !== "";
+    effectiveSearch !== "";
 
   // Filter by search client-side (article name/category)
-  const visibleGaps = filters.search
+  const visibleGaps = effectiveSearch
     ? gaps.filter(
         (g) =>
-          g.article.toLowerCase().includes(filters.search.toLowerCase()) ||
-          (g.category ?? "").toLowerCase().includes(filters.search.toLowerCase())
+          g.article.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+          (g.category ?? "").toLowerCase().includes(effectiveSearch.toLowerCase())
       )
     : gaps;
 
@@ -154,6 +172,10 @@ export const GapList = ({ assessmentId, regulation, onGapClick }: GapListProps) 
   const handlePrev = () => setPage((p) => Math.max(0, p - 1));
   const handleNext = () => setPage((p) => Math.min(totalPages - 1, p + 1));
   const handleRetry = () => refetch();
+
+  useEffect(() => {
+    onTotalChange?.(total);
+  }, [total, onTotalChange]);
 
   // ── Render helpers ────────────────────────────────────
 
@@ -293,7 +315,7 @@ export const GapList = ({ assessmentId, regulation, onGapClick }: GapListProps) 
   return (
     <div className={styles.wrapper}>
       {renderHeader()}
-      {renderFilters()}
+      {!hideInternalFilters && renderFilters()}
       {renderList()}
       {renderPagination()}
     </div>

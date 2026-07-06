@@ -27,8 +27,7 @@ const styles = {
 
 export const TopBar = async ({ title, subtitle }: TopBarProps) => {
   const user = await currentUser();
-  const name = user?.firstName ?? user?.emailAddresses[0]?.emailAddress ?? "there";
-  const email = user?.emailAddresses[0]?.emailAddress ?? "";
+  const name = user?.firstName ?? "there";
 
   return (
     <header className={styles.header}>
@@ -40,7 +39,6 @@ export const TopBar = async ({ title, subtitle }: TopBarProps) => {
       <div className={styles.userWrapper}>
         <div className={styles.userInfo}>
           <p className={styles.userName}>{name}</p>
-          <p className={styles.userEmail}>{email}</p>
         </div>
         <div className={styles.avatar}>
           <span className={styles.avatarText}>{name.charAt(0)}</span>

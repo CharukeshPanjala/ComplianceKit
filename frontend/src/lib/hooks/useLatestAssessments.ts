@@ -15,6 +15,14 @@ export function useLatestAssessments() {
       if (!token) throw new Error("Not authenticated");
       return getLatestAssessments(token);
     },
-    staleTime: 1000 * 10, // 10 seconds — refresh frequently
+    staleTime: 1000 * 10,
+    refetchInterval: (query) => {
+      const assessments = query.state.data;
+      if (!assessments) return false;
+      const anyRunning = assessments.some(
+        (a) => a.status === "pending" || a.status === "running"
+      );
+      return anyRunning ? 3000 : false;
+    },
   });
 }

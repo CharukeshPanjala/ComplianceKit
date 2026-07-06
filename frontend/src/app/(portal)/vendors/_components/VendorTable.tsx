@@ -7,13 +7,13 @@ import { VendorEditModal } from "./VendorEditModal";
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = {
-  wrapper: "overflow-x-auto rounded-xl border border-gray-100 shadow-sm",
+  wrapper: "overflow-x-auto rounded-xl border border-[#E2E8F0] shadow-sm",
   table: "w-full text-sm",
-  thead: "bg-gray-50 border-b border-gray-100",
-  th: "px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap",
-  tr: "border-b border-gray-50 hover:bg-gray-50/50 transition-colors",
-  td: "px-4 py-3 text-sm text-gray-700",
-  name: "font-medium text-gray-900",
+  thead: "bg-[#F8FAFC] border-b border-[#E2E8F0]",
+  th: "px-4 py-3 text-left text-xs font-semibold text-[#64748B] uppercase tracking-wide whitespace-nowrap",
+  tr: "border-b border-[#E2E8F0] even:bg-[#F8FAFC] hover:bg-gray-50/50 transition-colors",
+  td: "px-4 py-3 text-sm text-[#334155]",
+  name: "font-medium text-[#0F172A]",
   link: "text-blue-600 hover:underline",
   riskBadge: {
     base: "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
@@ -30,8 +30,8 @@ const styles = {
   },
   dpaYes: "inline-flex items-center gap-1 text-green-700 text-xs font-medium",
   dpaNo: "inline-flex items-center gap-1 text-red-600 text-xs font-medium",
-  editBtn: "px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors",
-  emptyRow: "py-16 text-center text-gray-400 text-sm",
+  editBtn: "px-3 py-1.5 text-xs font-medium text-[#334155] border border-[#E2E8F0] hover:bg-gray-50 rounded-lg transition-colors",
+  emptyRow: "py-16 text-center text-[#64748B] text-sm",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -127,7 +127,11 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
           </button>
           <button
             className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
-            onClick={() => onDelete(p.processor_id)}
+            onClick={() => {
+              if (window.confirm(`Remove ${p.name} from your vendor register?`)) {
+                onDelete(p.processor_id);
+              }
+            }}
           >
             Remove
           </button>

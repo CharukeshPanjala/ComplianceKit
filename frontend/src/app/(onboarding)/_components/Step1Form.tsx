@@ -6,10 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FormField } from "@/components/ui/FormField";
-import { SelectCard } from "@/components/ui/SelectCard";
 import { clientApiFetch } from "@/lib/clientApi";
 import type { Profile } from "@/types/profile";
 import { OtherInput } from "@/components/ui/OtherInput";
@@ -55,16 +53,14 @@ const B2B_OR_B2C_OPTIONS = [
 
 // ── Styles ────────────────────────────────────────────────
 
+const SELECT_CLASS =
+  "w-full px-3 py-2.5 border border-[#E2E8F0] rounded-lg text-sm bg-white text-[#334155] focus:outline-none focus:border-[#D97706] transition-colors";
+
 const styles = {
   section: "space-y-6",
-  pillGroup: "flex flex-wrap gap-2",
-  pill: {
-    base: "px-4 py-2 text-sm border rounded-full transition-colors",
-    active: "border-navy bg-navy/10 text-navy font-medium",
-    inactive: "border-gray-300 text-gray-600 hover:border-navy",
-  },
-  cardGroup: "grid grid-cols-3 gap-2",
   nav: "flex justify-end mt-8",
+  submitBtn: "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2 bg-[#D97706] text-white hover:bg-[#B45309]",
+  error: "mt-4 text-sm text-red-600",
 };
 
 // ── Props ─────────────────────────────────────────────────
@@ -118,9 +114,6 @@ export default function Step1Form({ initialData }: Props) {
     },
   });
 
-  const companySize = watch("company_size");
-  const b2bOrB2c = watch("b2b_or_b2c");
-
   // ── Render helpers ────────────────────────────────────────
 
   const renderCompanyName = () => (
@@ -155,36 +148,35 @@ export default function Step1Form({ initialData }: Props) {
   );
   const renderCompanySize = () => (
     <FormField label="Company size" required error={errors.company_size?.message}>
-      <div className={styles.pillGroup}>
+      <select
+        value={watch("company_size") ?? ""}
+        onChange={(e) => setValue("company_size", e.target.value, { shouldValidate: true })}
+        className={SELECT_CLASS}
+      >
+        <option value="">Select company size...</option>
         {COMPANY_SIZE_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setValue("company_size", opt.value, { shouldValidate: true })}
-            className={`${styles.pill.base} ${
-              companySize === opt.value ? styles.pill.active : styles.pill.inactive
-            }`}
-          >
+          <option key={opt.value} value={opt.value}>
             {opt.label}
-          </button>
+          </option>
         ))}
-      </div>
+      </select>
     </FormField>
   );
 
   const renderCustomerType = () => (
     <FormField label="Who are your customers?" required error={errors.b2b_or_b2c?.message}>
-      <div className={styles.cardGroup}>
+      <select
+        value={watch("b2b_or_b2c") ?? ""}
+        onChange={(e) => setValue("b2b_or_b2c", e.target.value, { shouldValidate: true })}
+        className={SELECT_CLASS}
+      >
+        <option value="">Select...</option>
         {B2B_OR_B2C_OPTIONS.map((opt) => (
-          <SelectCard
-            key={opt.value}
-            label={opt.label}
-            description={opt.description}
-            selected={b2bOrB2c === opt.value}
-            onClick={() => setValue("b2b_or_b2c", opt.value, { shouldValidate: true })}
-          />
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
         ))}
-      </div>
+      </select>
     </FormField>
   );
 
@@ -201,9 +193,13 @@ export default function Step1Form({ initialData }: Props) {
 
   const renderNavigation = () => (
     <div className={styles.nav}>
-      <Button type="submit" loading={isSubmitting} loadingText="Saving...">
-        Save & Continue →
-      </Button>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className={styles.submitBtn}
+      >
+        {isSubmitting ? "Saving..." : "Save & Continue →"}
+      </button>
     </div>
   );
 
@@ -247,7 +243,7 @@ export default function Step1Form({ initialData }: Props) {
         {renderCustomerType()}
         {renderWebsite()}
       </div>
-      {serverError && <p className="mt-4 text-sm text-red-600">{serverError}</p>}
+      {serverError && <p className={styles.error}>{serverError}</p>}
       {renderNavigation()}
     </form>
   );

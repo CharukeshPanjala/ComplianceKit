@@ -5,3 +5,75 @@
   --color-navy-dark: #0f2544;
   --color-warm-white: #fffbf5;
 }
+
+@theme inline {
+  /* Sidebar */
+  --sidebar-bg: #0B1120;
+  --sidebar-hover: #1a2740;
+  --sidebar-active: #1e3050;
+
+  /* Accent amber */
+  --accent-amber: #D97706;
+  --accent-amber-light: #F59E0B;
+  --accent-amber-bg: #FEF3C7;
+  --accent-amber-border: #FDE68A;
+
+  /* Surfaces */
+  --content-bg: #F8FAFC;
+  --surface-white: #FFFFFF;
+  --surface-grey: #F1F5F9;
+
+  /* Borders */
+  --border-subtle: #F1F5F9;
+  --border-default: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  /* Text */
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-tertiary: #64748B;
+  --text-muted: #94A3B8;
+
+  /* Danger */
+  --danger: #DC2626;
+  --danger-light: #FEE2E2;
+  --danger-border: #FCA5A5;
+
+  /* Warning */
+  --warning: #D97706;
+  --warning-light: #FEF3C7;
+  --warning-border: #FDE68A;
+
+  /* Success */
+  --success: #16A34A;
+  --success-light: #DCFCE7;
+  --success-border: #86EFAC;
+
+  /* Info */
+  --info: #0891B2;
+  --info-light: #CFFAFE;
+  --info-border: #67E8F9;
+
+  /* Regulations */
+  --gdpr: #7C3AED;
+  --gdpr-bg: #EDE9FE;
+  --gdpr-border: #C4B5FD;
+  --nis2: #0891B2;
+  --nis2-bg: #CFFAFE;
+  --nis2-border: #67E8F9;
+  --ai-act: #BE185D;
+  --ai-act-bg: #FCE7F3;
+  --ai-act-border: #F9A8D4;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+}
