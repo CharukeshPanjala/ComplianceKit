@@ -5,6 +5,78 @@ Updated every time a ticket is closed.
 
 ---
 
+## Session — 2026-07-04 — Full Frontend UI Redesign (Sprint 5 Visual Overhaul)
+
+**Date:** 2026-07-04
+**Branch:** fix/sprint-5-touchups
+
+### What was built
+
+Full visual redesign of the ComplianceKit frontend across all portal pages and the onboarding flow. Executed as a multi-agent pipeline (Brain Agent → 10 Feature Area agents in parallel).
+
+**Design tokens (globals.css)**
+Added `@theme inline` block with 47 CSS custom properties: sidebar/accent/surface/border/text/regulation colours (GDPR=#7C3AED, NIS2=#0891B2, AI Act=#BE185D, amber=#D97706), radius scale, shadow scale.
+
+**Shared component library (10 new components in `src/components/ui/`)**
+Badge (10 variants), CountdownBadge, StatCard, EmptyState, FilterBar, GaugeRing (SVG arc gauge), ProgressBar, Stepper, RegulationBadge, Chip.
+
+**Sidebar**
+Rebuilt with 4 NAV_SECTIONS (OVERVIEW / COMPLIANCE / DATA OPERATIONS / SETTINGS), ShieldIcon logo, active amber border-l-3px, SoonBadge for locked items, sign-out footer.
+
+**Onboarding**
+- OnboardingTopBar (3-phase stepper replacing StepSidebar)
+- layout.tsx updated to TopBar layout
+- Step1Form: company size + B2B/B2C converted from pill/SelectCard to `<select>` elements
+- Step2RegulationPicker: 3 regulation cards with amber checkmark on selection
+- Step3Tracks + LiveRulesPanel + TrackQuestion: 2-column layout with live rule activation panel
+
+**Dashboard v2 — 9 new/rewritten components**
+- ExecutiveSummaryBar: 4 stat cards (overall score gauge, exposure, open issues, regulations covered)
+- CriticalAlertsPanel: top-4 urgency alerts (breach deadlines, overdue DSARs, high not-met regs)
+- RegulationHealthCards: 3-card grid with GaugeRing, severity breakdown, skeleton loader
+- ScoreTrendChart: rewritten to support optional `regulation` prop — single-line (existing gap view) or 4-line multi-regulation with mock data (overview)
+- GapChartsRow: severity donut + regulation bar chart (Recharts)
+- RiskExposurePanel: per-regulation exposure donut + table with formatted €amount
+- ComplianceMiniWidgets: DSAR status mini-pie + Vendor DPA status
+- RecentActivityFeed: 8 most recent events from assessments/DSARs/breaches, relative timestamps
+- DashboardContent: assembled all above + personalized greeting + maturity badge (Developing/Established/Advanced)
+
+**Feature pages restyled**
+Gap List: filter bar, bulk select, expandable rows, pagination (client-side, 20/page).
+Policies: amber accent, shadow-sm cards, "View →" link, "···" stub button.
+ROPA: table headers `#F8FAFC`, alternating rows, amber save buttons.
+Vendors: grey outlined edit button, `#F8FAFC` headers.
+Breach: stat cards, amber CTAs, renderStatusBadge(), countdown badge border updates.
+DSAR: stat cards, WorkflowDots sub-component, amber CTAs.
+
+### Key decisions
+
+- `LatestAssessment` (not `Assessment`) is the correct type for the dashboard — it has `regulation`, `score`, `status`, `not_met_rules` etc. `Assessment` has none of these at the top level.
+- `ScoreTrendChart` kept the optional `regulation?` prop to preserve existing GapSection single-line usage.
+- Severity distribution in GapChartsRow approximated from `not_met_rules * weights` since `LatestAssessment` carries no per-severity breakdown. Real data would require per-assessment gap fetches.
+- `Processor.dpa_signed: boolean` (not `dpa_status` string) — ComplianceMiniWidgets uses `dpa_signed` directly.
+- `BreachStatus` enum is `"draft" | "under_investigation" | ...` (no "OPEN") — CriticalAlertsPanel flags draft + under_investigation with deadline < 48h remaining.
+- Background agents cannot use the Write tool (no interactive user approval in background mode). Pivot: Brain Agent writes all files directly in the foreground conversation where permission prompts are visible.
+
+### Gotchas
+
+- Next.js typed routes: `Link href` requires `as any` cast for dynamic string hrefs — affects CriticalAlertsPanel, RegulationHealthCards, ComplianceMiniWidgets.
+- `BreachListResponse.breaches` (not `.incidents`) — caught by typecheck.
+- Recharts `Tooltip formatter` type: must return `[string, string]` tuple, not `(value: number) => string`.
+- Inline `style={{}}` is the correct exception for SVG dimensions and coloured dots (prop-computed values) — not a CLAUDE.md violation.
+
+### Files changed — 52 total
+- 15 new files in Sprint 1 (10 UI components + 5 onboarding)
+- 28 edited in Sprint 1 (dashboard, gaps, policies, ROPA, vendors, breach, DSAR, globals.css)
+- 9 new/rewritten in Sprint 2 (Dashboard v2 components)
+
+### Next
+
+- FA-D10: Profile Settings page (`/settings/profile`) — accordion form pre-populated from current profile, Save & Recalculate button triggers PATCH + 3 assessment POSTs.
+- E2E testing with Clerk test accounts before any customer-facing deployment.
+
+---
+
 ---
 
 ## Sprint 0 — Foundation
