@@ -77,6 +77,209 @@ DSAR: stat cards, WorkflowDots sub-component, amber CTAs.
 
 ---
 
+## Session — 2026-07-05 to 2026-07-07 — Full Codebase Audit + Bug Fix Pipeline (Sprint 5 Hardening)
+
+**Date:** 2026-07-05 to 2026-07-07
+**Branch:** fix/sprint-5-touchups
+
+### What was built
+
+Full multi-agent codebase audit across the entire ComplianceKit stack (frontend + policy-engine + common), followed by systematic fixing of every issue found. Executed as a 3-layer pipeline:
+
+1. **11 sub-brain analysis agents** ran in parallel, each owning one domain (scorer logic, API contracts, data flow, type safety, UI/UX, dead code, em-dash enforcement, etc.)
+2. **3 verifier agents** (UX Flow, Data Contract, Logic+Consistency) independently validated sub-brain findings
+3. All confirmed issues prioritised (P0/P1/P2/P3/Dead Code) and fixed one by one
+
+**Total findings: P0=3, P1=12, P2=9, P3=7, Dead=5**
+
+---
+
+### P0 Fixes (data correctness, auth blocking)
+
+**P0-1 — AI Act Art.6 scoring logic bug (scorer.py)**
+`or []` coercion on `high_risk_ai_categories` made `is not None` always `True` — every tenant evaluated as "met" regardless of whether they answered the question.
+```python
+# Before
+high_risk = self.ai.get("high_risk_ai_categories") or []
+return self._result(rule, "met" if high_risk is not None else "unknown", {...})
+# After
+high_risk = self.ai.get("high_risk_ai_categories")
+if high_risk is None:
+    return self._result(rule, "unknown", {"reason": "gpai_usage_not_answered"})
+return self._result(rule, "met" if not high_risk else "not_met", {...})
+```
+
+**P0-2 — `"legitimate_interest"` typo (3 files)**
+`processing_purposes` in Step2Form, Step6Form, and ProfileSettingsContent all used `"legitimate_interest"` (no trailing `s`). The profile schema and scorer both key on `"legitimate_interests"`. Fixed in all 3 files.
+
+**P0-3 — Portal layout catch block blocked portal on API error**
+`catch` block in `(portal)/layout.tsx` was setting `isComplete = false` when the API was unreachable, causing infinite redirect to `/onboarding`. Fixed to `isComplete = true` — API unreachable means let them through.
+
+---
+
+### P1 Fixes (incorrect data shown to users)
+
+**P1-1 — ScoreTrendChart MOCK_DATA (ScoreTrendChart.tsx)**
+The multi-regulation overview view used hardcoded `MOCK_DATA` with fake monthly scores (Feb–Jul, GDPR/NIS2/AI Act all trending upward). Replaced with a single `useAssessmentHistory(undefined, 30)` call that fetches all regulations, then builds a real merged timeline. Each assessment run advances the running score for its regulation; `connectNulls` handles sparse data. Only regulations with actual assessments get a line.
+
+**P1-2 — RiskExposurePanel used total gaps divided by 3 (RiskExposurePanel.tsx)**
+Props changed from `gaps: Gap[]` (total, divided equally across regulations) to `gapsByRegulation: Record<string, Gap[]>` (real per-regulation gap lists). Exposure calculation now uses actual counts per regulation.
+
+**P1-3 — GapChartsRow hardcoded severity ratios (GapChartsRow.tsx)**
+Same fix — props changed to `gapsByRegulation`, bar chart now computes real per-regulation severity breakdown from actual gap data.
+
+**P1-4 — DeadlinesWidget hardcoded `regulation="GDPR"` (DashboardContent.tsx)**
+`DeadlinesWidget` was only showing GDPR deadlines. Fixed to iterate `gapsByRegulation` and pass all regulations' gaps.
+
+**P1-5 — QuickWinsWidget had no real assessment ID (DashboardContent.tsx)**
+Added `primaryAssessmentId` (first completed assessment) + `useAssessmentStats` hook so QuickWins pulls from real assessment data.
+
+**P1-6 — CountdownBadge thresholds wrong (CountdownBadge.tsx)**
+Red threshold was `< 24` hours (should be `< 6`), amber was `< 48` (should be `< 24`). Fixed to match regulatory deadlines: red = under 6h, amber = under 24h.
+
+**P1-7 — CountdownBadge shown on closed breaches (BreachTable.tsx)**
+Countdown badge rendered even when `b.status === "closed"`. Added `b.status !== "closed"` guard.
+
+**P1-8 — ExecutiveSummaryBar excluded `unknown` gaps from open count**
+`isOpen` predicate only matched `"not_met" | "partial"`. Added `"unknown"` — gaps with insufficient data are still open issues.
+
+**P1-9 — `/history` endpoint leaked raw UUID `regulation_id`**
+`AssessmentHistoryItem` was returning `regulation_id: uuid` instead of a human-readable regulation name. Fixed with a JOIN on the Regulation table:
+```python
+query = (
+    select(Assessment, Regulation.name.label("regulation_name"))
+    .join(Regulation, Assessment.regulation_id == Regulation.id)
+    ...
+)
+# Response now returns: "regulation": row.regulation_name
+```
+Updated `AssessmentHistoryItem.regulation_id: string` → `regulation: string` in the TypeScript interface.
+
+**P1-10 — GapDetailModal UNKNOWN_REASON_MAP key typo**
+Key `cannot_evaluate_technical_measure_without_additional_data` → `cannot_evaluate_technical_without_additional_data` (matches actual scorer output).
+
+**P1-11 — N/A (not_applicable_reason already human-readable)**
+Verifier flagged `not_applicable_reason` displaying raw code keys. Confirmed on inspection: `_applicability()` in the backend already returns full English sentences — no fix needed.
+
+**P1-12 — RegulationHealthCards `totalRules` denominator missing `partial_rules`**
+Denominator was `met + not_met + unknown`. Added `partial_rules` so the gauge denominator is correct. Required first adding `partial_rules: number | null` to the `LatestAssessment` TypeScript interface (backend already sends it).
+
+---
+
+### P2 Fixes (UX gaps)
+
+**P2-1 — GapsPageContent loading state was `null`**
+Loading state returned `null` (blank screen). Replaced with a spinner + "Loading gaps..." message.
+
+**P2-2 — GapsPageContent had no error state**
+Added `isError: gapsError` from `useGaps` and an error state in `renderContent` with a user-friendly message.
+
+**P2-3 — GapsPageContent status filter missing `not_applicable`, labels wrong**
+Added `not_applicable` as a filter option. All labels updated from raw enum values to human-readable strings (e.g., `"not_met"` → `"Not Met"`).
+
+**P2-4 — VendorTable delete had no confirmation**
+Delete button called `onDelete()` immediately. Wrapped in `window.confirm("Delete this vendor?")`.
+
+**P2-5 — DSAR page had no status filter**
+Added `statusFilter` state, a filter `<select>` in the header bar, and client-side filtering applied before passing to `DsarTable`.
+
+**P2-6 — DsarDetailModal didn't show `completed_at`**
+Added a `completed_at` field display when the field is present on the DSAR record.
+
+**P2-7 — N/A (breach/DSAR delete already had try/catch + toast)**
+Verifier flagged silent error swallowing — confirmed both already had proper error handling.
+
+**P2-8 — Dashboard never auto-triggered assessments on first load**
+Added `useTriggerAssessment` + `useRef` guard + `useEffect` to `DashboardContent`. On first render, any `never_run` regulations are auto-triggered once. Polling handles the `pending → running → completed` transition.
+
+**P2-9 — GapDetailModal UNKNOWN_REASON_MAP had only 3 generic keys**
+Expanded to 28 entries covering all scorer-specific reason keys across GDPR, NIS2, and AI Act, with user-facing guidance for each.
+
+---
+
+### P3 Fixes (polish, standards compliance)
+
+**P3-1 — Nested `<a>` inside `<Link>` in PolicyLibrary**
+`<a className="...">View →</a>` inside `<Link>` renders as nested anchors — invalid HTML. Changed inner element to `<span>`.
+
+**P3-2 — Sidebar footer showed placeholder name/avatar**
+Footer hardcoded `"User"` and `"U"`. Wired in `useUser` from Clerk — now shows real first name, email initial, and org role.
+
+**P3-3 — TopBar showed email in DOM**
+Removed email from rendered output. Name fallback changed from email to `user?.firstName ?? "there"`.
+
+**P3-4 — Step6Form tooltip em dashes (4 instances)**
+CLAUDE.md rule: no em dashes in customer-facing text. Replaced `—` with periods/commas in 4 tooltip strings.
+
+**P3-5 — GapsPageContent em dash fallbacks**
+`"—"` fallback strings for empty fields changed to `"N/A"`.
+
+**P3-6 — GapDetailModal em dash in `policy_required` message**
+Single em dash replaced with a period.
+
+**P3-7 — Inline Tailwind classNames in Step1Form, Step2Form, Step6Form**
+Moved all remaining inline classNames into the `const styles = {}` object per CLAUDE.md standard. Added `submitBtn`, `error`, `textarea`, `fieldLabel`, `asterisk`, `fieldError` entries across the 3 files.
+
+---
+
+### Dead Code Removed
+
+- **`AssessmentSection.tsx`** — deleted, no longer imported anywhere after dashboard v2
+- **`RegulationCard.tsx`** (dashboard version) — deleted; `Step2RegulationPicker.tsx` defines its own local `RegulationCard` component with the same name (different component, no import)
+- **`ScoreGauge.tsx`** — deleted, only used by the deleted `RegulationCard.tsx`
+- **`BreachTable.tsx` line 80** — `|| s === "open"` in `renderStatusBadge` dead alias removed; `"draft"` and `"open"` were both mapping to "Open" badge but `open` is not a valid `BreachStatus` value
+- **`breach.py` line 73** — redundant `deadline = discovered.replace(tzinfo=timezone.utc) if ...` assignment immediately overwritten by line 75. Removed.
+
+---
+
+### Navigation performance fix
+
+**Root cause:** No `loading.tsx` files existed on any portal route. Every nav click caused a blank-screen wait while Next.js completed the server round-trip before rendering anything.
+
+**Fix:** Created `PageSkeleton` shared component (animated pulse — title bar, stat cards, table rows) and `loading.tsx` for all 8 portal routes:
+- `/dashboard`, `/gaps`, `/policies`, `/ropa`, `/breach`, `/dsar`, `/vendors`, `/settings/profile`
+
+Navigation now shows the skeleton instantly on click; data loads behind it via TanStack Query.
+
+---
+
+### Key decisions
+
+- `gapsByRegulation: Record<string, Gap[]>` established as the standard prop type for any widget needing per-regulation breakdown (RiskExposurePanel, GapChartsRow, DeadlinesWidget).
+- `useAssessmentHistory(undefined, 30)` fetches all regulations at once; both single-line and multi-line chart views derived from the same dataset.
+- `loading.tsx` is the correct Next.js pattern for perceived instant navigation — it's a Suspense boundary that shows immediately, independent of server render time.
+- In dev mode (`pnpm dev`), Next.js does not prefetch routes and compiles on-demand — navigation will always be slower than a production build. The skeleton mitigates this.
+
+### Gotchas
+
+- `useAssessmentHistory` with `regulation = undefined` fetches all regulation history via the `/history` endpoint (no `regulation` query param). The hook signature already supports this — no changes needed.
+- P1-11 and P2-7 were listed as bugs in the audit report but confirmed non-issues on inspection. The audit report was stale — the backend already handled both correctly.
+- Deleting `RegulationCard.tsx` is safe: `Step2RegulationPicker.tsx` defines its own component with the same name locally — it never imports from the dashboard path.
+
+### Commits
+
+```
+fix(policy): fix ai act art.6 scoring logic, history uuid leak, and dead code (COM-125)
+fix(frontend): sprint 5 audit fixes across dashboard, gaps, breach, dsar, and onboarding (COM-125)
+docs: update devlog for sprint 5 audit and ui overhaul session (COM-125)
+fix(frontend): add loading.tsx skeletons to all portal routes for instant nav feedback
+```
+
+### Files changed
+
+**Backend (policy-engine)**
+- `services/policy-engine/app/engine/scorer.py` — Art.6 logic fix
+- `services/policy-engine/app/routers/assessments.py` — /history UUID leak fix
+- `services/policy-engine/app/routers/breach.py` — dead assignment removed
+- `services/policy-engine/app/workers/assessment.py` — minor cleanup
+
+**Frontend (61 files across 3 commits)**
+- New: `PageSkeleton.tsx`, `loading.tsx` x8, `ExecutiveSummaryBar.tsx`, `RegulationHealthCards.tsx`, `RiskExposurePanel.tsx`, `GapChartsRow.tsx`, `ComplianceMiniWidgets.tsx`, `RecentActivityFeed.tsx`, `CriticalAlertsPanel.tsx`, `LiveRulesPanel.tsx`, `LiveRulesPanelWrapper.tsx`, `OnboardingTopBar.tsx`, `Step2RegulationPicker.tsx`, `Step3Tracks.tsx`, `TrackQuestion.tsx`, 10 shared UI components, settings/profile page
+- Deleted: `AssessmentSection.tsx`, `RegulationCard.tsx`, `ScoreGauge.tsx`
+- Modified: `DashboardContent.tsx`, `ScoreTrendChart.tsx`, `GapDetailModal.tsx`, `GapsPageContent.tsx`, `DsarDetailModal.tsx`, `dsar/page.tsx`, `VendorTable.tsx`, `BreachTable.tsx`, `CountdownBadge.tsx`, `Sidebar.tsx`, `TopBar.tsx`, `PolicyLibrary.tsx`, `Step1Form.tsx`, `Step2Form.tsx`, `Step6Form.tsx`, `layout.tsx`, `assessment.ts`, `useLatestAssessments.ts`, `globals.css`
+
+---
+
 ---
 
 ## Sprint 0 — Foundation
