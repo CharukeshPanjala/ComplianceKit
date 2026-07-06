@@ -95,6 +95,23 @@ class Scorer:
             elif result.status == "partial":
                 earned_weight += weight * 0.5
 
+        total_applicable = len(scoring_results)
+        unknown_count = counts["unknown"]
+
+        # Insufficient data: >50% of applicable rules are unknown — score would be misleading
+        if total_applicable > 0 and unknown_count / total_applicable > 0.5:
+            return {
+                "score": None,
+                "risk_level": None,
+                "insufficient_data": True,
+                "total_rules": total_applicable,
+                "met_rules": counts["met"],
+                "partial_rules": counts["partial"],
+                "not_met_rules": counts["not_met"],
+                "unknown_rules": unknown_count,
+                "applicable_rules": total_applicable,
+            }
+
         score = round((earned_weight / total_weight) * 100) if total_weight > 0 else 0
 
         # Risk level from score
@@ -110,12 +127,13 @@ class Scorer:
         return {
             "score": score,
             "risk_level": risk_level,
-            "total_rules": len(scoring_results),
+            "insufficient_data": False,
+            "total_rules": total_applicable,
             "met_rules": counts["met"],
             "partial_rules": counts["partial"],
             "not_met_rules": counts["not_met"],
-            "unknown_rules": counts["unknown"],
-            "applicable_rules": len(scoring_results),
+            "unknown_rules": unknown_count,
+            "applicable_rules": total_applicable,
         }
 
     # ── Score dispatcher ──────────────────────────────────────────────────────
@@ -471,9 +489,11 @@ class Scorer:
 
         # EU AI Act Art. 6 — High-risk classification
         if n == 6:
-            high_risk = self.ai.get("high_risk_ai_categories") or []
-            return self._result(rule, "met" if high_risk is not None else "unknown", {
-                "high_risk_ai_categories": high_risk,
+            high_risk = self.ai.get("high_risk_ai_categories")
+            if high_risk is None:
+                return self._result(rule, "unknown", {"reason": "gpai_usage_not_answered"})
+            return self._result(rule, "met" if not high_risk else "not_met", {
+                "high_risk_ai_categories": high_risk or [],
             })
 
         # EU AI Act Art. 22 — Authorised representative (non-EU providers)

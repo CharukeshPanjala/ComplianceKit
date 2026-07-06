@@ -207,13 +207,44 @@ async def get_latest_assessments(
     )
     profile = profile_result.scalar_one_or_none()
 
-    def _is_applicable(reg_name: str) -> bool:
+    def _applicability(reg_name: str) -> tuple[bool, str | None]:
         if reg_name == "NIS2":
-            sectors = (profile.nis2_data or {}).get("sectors", []) if profile else []
-            return bool(sectors) and sectors != ["not_applicable"]
+            if not profile:
+                return False, "Complete your company profile to determine NIS2 applicability."
+            sectors = (profile.nis2_data or {}).get("sectors", [])
+            if not sectors or sectors == ["not_applicable"]:
+                return False, (
+                    "You indicated no applicable NIS2 sectors. NIS2 only applies to "
+                    "organisations operating in the 18 critical sectors listed in Annexes I and II "
+                    "(energy, transport, banking, health, digital infrastructure, etc.)."
+                )
+            size = str(profile.company_size.value if profile.company_size else "")
+            size_exempt = {"1-10", "11-50"}
+            # digital_infrastructure and public_administration are size-independent
+            size_independent = {"digital_infrastructure", "public_administration"}
+            in_scope_sectors = [s for s in sectors if s not in size_independent]
+            if in_scope_sectors and size in size_exempt:
+                return False, (
+                    f"Your company ({size} employees) is below the NIS2 size threshold. "
+                    "For most sectors, NIS2 applies to medium and large organisations only "
+                    "(50+ employees or €10M+ annual turnover). "
+                    "If your company is the sole provider of a critical service in your country, "
+                    "national authorities may still designate you as in-scope."
+                )
+            return True, None
         if reg_name == "EU_AI_ACT":
-            return bool((profile.ai_act_data or {}).get("uses_ai")) if profile else False
-        return True
+            if not profile:
+                return False, "Complete your company profile to determine EU AI Act applicability."
+            uses_ai = bool((profile.ai_act_data or {}).get("uses_ai"))
+            if not uses_ai:
+                return False, (
+                    "You indicated your organisation does not develop or use AI systems. "
+                    "The EU AI Act applies only to providers (who develop/sell AI) and deployers "
+                    "(who use AI in their products or services). "
+                    "If you start using AI tools, re-run your profile assessment."
+                )
+            return True, None
+        return True, None
 
     for reg_name in regulations:
         reg_result = await session.execute(
@@ -234,18 +265,70 @@ async def get_latest_assessments(
         )
         assessment = assessment_result.scalar_one_or_none()
 
+        # When latest is pending/running/failed, also fetch last completed score
+        # so the UI can show the previous score while recalculating
+        last_score = None
+        last_risk_level = None
+        last_met = None
+        last_not_met = None
+        last_unknown = None
+        if assessment and assessment.status in ("pending", "running", "failed"):
+            prev_result = await session.execute(
+                select(Assessment)
+                .where(
+                    Assessment.tenant_id == claims.tenant_id,
+                    Assessment.regulation_id == regulation.id,
+                    Assessment.status == AssessmentStatus.COMPLETED,
+                )
+                .order_by(desc(Assessment.completed_at))
+                .limit(1)
+            )
+            prev = prev_result.scalar_one_or_none()
+            if prev:
+                last_score = prev.score
+                last_risk_level = prev.risk_level
+                last_met = prev.met_rules
+                last_not_met = prev.not_met_rules
+                last_unknown = prev.unknown_rules
+
+        applicable, not_applicable_reason = _applicability(reg_name)
+
+        # Determine effective status
+        if assessment:
+            effective_status = assessment.status
+        elif applicable:
+            effective_status = "never_run"
+        else:
+            effective_status = "not_applicable"
+
+        # If assessment exists but all gaps are not_applicable, override status
+        if assessment and assessment.status == "completed" and not applicable:
+            effective_status = "not_applicable"
+
+        unknown_count = assessment.unknown_rules or 0 if assessment else 0
+        applicable_count = assessment.applicable_rules or 0 if assessment else 0
+        insufficient_data = (
+            assessment is not None
+            and assessment.status == "completed"
+            and assessment.score is None
+            and applicable_count > 0
+            and unknown_count / applicable_count > 0.5
+        )
+
         results.append({
             "regulation": reg_name,
             "assessment_id": assessment.assessment_id if assessment else None,
             "score": assessment.score if assessment else None,
+            "last_score": last_score,
             "risk_level": assessment.risk_level if assessment else None,
-            "met_rules": assessment.met_rules if assessment else None,
-            "not_met_rules": assessment.not_met_rules if assessment else None,
-            "unknown_rules": assessment.unknown_rules if assessment else None,
+            "last_risk_level": last_risk_level,
+            "met_rules": assessment.met_rules if assessment else last_met,
+            "not_met_rules": assessment.not_met_rules if assessment else last_not_met,
+            "unknown_rules": assessment.unknown_rules if assessment else last_unknown,
             "completed_at": assessment.completed_at if assessment else None,
-            "status": assessment.status
-            if assessment
-            else ("never_run" if _is_applicable(reg_name) else "not_applicable"),
+            "status": effective_status,
+            "not_applicable_reason": not_applicable_reason,
+            "insufficient_data": insufficient_data,
         })
 
     return {"assessments": results}
@@ -263,7 +346,8 @@ async def get_assessment_history(
     Returns last N completed assessments per regulation.
     """
     query = (
-        select(Assessment)
+        select(Assessment, Regulation.name.label("regulation_name"))
+        .join(Regulation, Assessment.regulation_id == Regulation.id)
         .where(
             Assessment.tenant_id == claims.tenant_id,
             Assessment.status == AssessmentStatus.COMPLETED,
@@ -278,25 +362,25 @@ async def get_assessment_history(
         )
         reg = reg_result.scalar_one_or_none()
         if not reg:
-            return {"history": []} 
+            return {"history": []}
         query = query.where(Assessment.regulation_id == reg.id)
 
     result = await session.execute(query)
-    assessments = result.scalars().all()
+    rows = result.all()
 
     return {
         "history": [
             {
-                "assessment_id": a.assessment_id,
-                "regulation_id": str(a.regulation_id),
-                "score": a.score,
-                "risk_level": a.risk_level,
-                "met_rules": a.met_rules,
-                "not_met_rules": a.not_met_rules,
-                "unknown_rules": a.unknown_rules,
-                "completed_at": a.completed_at,
+                "assessment_id": row.Assessment.assessment_id,
+                "regulation": row.regulation_name,
+                "score": row.Assessment.score,
+                "risk_level": row.Assessment.risk_level,
+                "met_rules": row.Assessment.met_rules,
+                "not_met_rules": row.Assessment.not_met_rules,
+                "unknown_rules": row.Assessment.unknown_rules,
+                "completed_at": row.Assessment.completed_at,
             }
-            for a in assessments
+            for row in rows
         ]
     }
 
@@ -400,6 +484,7 @@ async def get_gaps(
                 "article": g.article,
                 "article_number": g.article_number,
                 "title": g.title,
+                "plain_english": g.plain_english,
                 "remediation_hint": g.remediation_hint,
                 "chapter": g.chapter,
                 "category": g.category,
