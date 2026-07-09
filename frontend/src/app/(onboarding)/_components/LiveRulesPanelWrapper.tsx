@@ -78,7 +78,6 @@ export const LiveRulesPanelWrapper = () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("ck:rules-update", handleStorage);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   // On step change, load step default if no sessionStorage value

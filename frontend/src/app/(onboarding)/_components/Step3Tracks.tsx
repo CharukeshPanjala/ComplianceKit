@@ -10,7 +10,6 @@ type RegulationType = "GDPR" | "NIS2" | "AI_ACT";
 interface Step3TracksProps {
   selectedRegulations: string[];
   onComplete: () => void;
-  onBack: () => void;
 }
 
 interface Question {
@@ -234,7 +233,7 @@ const REG_KEYS: Record<string, RegulationType> = {
 };
 
 // ── Component ───────────────────────────────────────────────
-export const Step3Tracks = ({ selectedRegulations, onComplete, onBack }: Step3TracksProps) => {
+export const Step3Tracks = ({ selectedRegulations, onComplete }: Step3TracksProps) => {
   const availableRegs = ALL_REGS.filter((r) =>
     selectedRegulations.some((sel) => REG_KEYS[sel] === r)
   );

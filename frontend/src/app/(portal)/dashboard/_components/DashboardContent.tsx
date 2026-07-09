@@ -96,7 +96,6 @@ const GapsForAssessment = ({
   const gaps = gapData?.gaps ?? [];
   useEffect(() => {
     if (gaps.length > 0) onGaps(assessmentId, gaps);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assessmentId, gaps.length]);
   return null;
 };
@@ -177,7 +176,6 @@ export const DashboardContent = ({ profile }: DashboardContentProps) => {
     if (neverRun.length === 0) return;
     autoTriggered.current = true;
     neverRun.forEach((a) => triggerAssessment.mutate(a.regulation));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestAssessments]);
 
   const dsarRequests = dsarData?.dsars ?? [];

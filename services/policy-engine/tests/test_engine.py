@@ -1110,12 +1110,13 @@ class TestScorerOverallScore:
         assert summary["score"] == 0
         assert summary["risk_level"] == "critical"
 
-    def test_all_unknown_gives_score_zero(self):
-        """All unknown rules → score is 0 (no weight to calculate from)."""
+    def test_all_unknown_gives_score_none(self):
+        """All unknown rules → insufficient_data, score is None (can't calculate from zero weight)."""
         results = [make_scoring_result(make_rule(severity=Severity.HIGH), "unknown")]
         scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
-        assert summary["score"] == 0
+        assert summary["score"] is None
+        assert summary.get("insufficient_data") is True
         assert summary["unknown_rules"] == 1
 
     def test_partial_rule_gives_50_percent(self):

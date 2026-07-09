@@ -491,9 +491,10 @@ class Scorer:
         if n == 6:
             high_risk = self.ai.get("high_risk_ai_categories")
             if high_risk is None:
-                return self._result(rule, "unknown", {"reason": "gpai_usage_not_answered"})
-            return self._result(rule, "met" if not high_risk else "not_met", {
-                "high_risk_ai_categories": high_risk or [],
+                return self._result(rule, "unknown", {"reason": "high_risk_categories_not_answered"})
+            # Field answered (even empty list) → company has completed classification exercise
+            return self._result(rule, "met", {
+                "high_risk_ai_categories": high_risk,
             })
 
         # EU AI Act Art. 22 — Authorised representative (non-EU providers)
