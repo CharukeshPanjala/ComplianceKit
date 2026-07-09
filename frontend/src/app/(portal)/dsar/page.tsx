@@ -14,7 +14,9 @@ const styles = {
   header: "flex items-start justify-between mb-6",
   heading: "text-2xl font-bold text-gray-900",
   subheading: "text-sm text-gray-500 mt-0.5",
-  logBtn: "flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors",
+  logBtn: "flex items-center gap-2 px-4 py-2 bg-[#D97706] hover:bg-[#B45309] text-white text-sm font-medium rounded-lg transition-colors",
+  filterBar: "flex items-center gap-3 mb-4",
+  filterSelect: "px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#D97706] bg-white text-[#334155]",
   statsRow: "grid grid-cols-4 gap-4 mb-6",
   statCard: "bg-white rounded-xl border border-gray-100 shadow-sm p-4",
   statValue: "text-2xl font-bold text-gray-900",
@@ -24,7 +26,7 @@ const styles = {
   emptyState: "flex flex-col items-center justify-center py-24 text-center",
   emptyTitle: "text-lg font-semibold text-gray-800 mb-2",
   emptyText: "text-sm text-gray-500 max-w-sm mb-6",
-  emptyCta: "flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors",
+  emptyCta: "flex items-center gap-2 px-5 py-2.5 bg-[#D97706] hover:bg-[#B45309] text-white text-sm font-medium rounded-lg transition-colors",
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -40,6 +42,7 @@ const PlusIcon = () => (
 export default function DsarPage() {
   // ── State ─────────────────────────────────────────────────────────────────
   const [showForm, setShowForm] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
 
   // ── Hooks ─────────────────────────────────────────────────────────────────
   const { data, isLoading, error } = useDsarList();
@@ -47,19 +50,20 @@ export default function DsarPage() {
   const update = useUpdateDsar();
   const remove = useDeleteDsar();
 
-  const dsars = data?.dsars ?? [];
+  const allDsars = data?.dsars ?? [];
+  const dsars = statusFilter ? allDsars.filter((d) => d.status === statusFilter) : allDsars;
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  const pendingCount = dsars.filter((d) => d.status === "pending" || d.status === "in_progress").length;
-  const overdueCount = dsars.filter((d) => d.is_overdue).length;
-  const unverifiedCount = dsars.filter((d) => !d.identity_verified && d.status !== "completed" && d.status !== "rejected" && d.status !== "withdrawn").length;
+  const totalCount = dsars.length;
+  const pendingCount = dsars.filter((d) => d.status === "pending").length;
+  const inProgressCount = dsars.filter((d) => d.status === "in_progress").length;
   const completedCount = dsars.filter((d) => d.status === "completed").length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreate = async (body: DsarCreateRequest) => {
     await create.mutateAsync(body);
-    toast.success("DSAR request logged — 30-day clock started");
+    toast.success("DSAR request logged, 30-day clock started");
   };
 
   const handleUpdate = async (dsarId: string, body: DsarUpdateRequest) => {
@@ -81,16 +85,16 @@ export default function DsarPage() {
   const renderStats = () => (
     <div className={styles.statsRow}>
       <div className={styles.statCard}>
+        <div className={styles.statValue}>{totalCount}</div>
+        <div className={styles.statLabel}>Total Requests</div>
+      </div>
+      <div className={styles.statCard}>
         <div className={styles.statValue}>{pendingCount}</div>
-        <div className={styles.statLabel}>Open requests</div>
+        <div className={styles.statLabel}>Pending</div>
       </div>
       <div className={styles.statCard}>
-        <div className={`${styles.statValue} ${overdueCount > 0 ? "text-red-600" : ""}`}>{overdueCount}</div>
-        <div className={styles.statLabel}>Overdue (30d)</div>
-      </div>
-      <div className={styles.statCard}>
-        <div className={`${styles.statValue} ${unverifiedCount > 0 ? "text-amber-600" : ""}`}>{unverifiedCount}</div>
-        <div className={styles.statLabel}>Identity unverified</div>
+        <div className={styles.statValue}>{inProgressCount}</div>
+        <div className={styles.statLabel}>In Progress</div>
       </div>
       <div className={styles.statCard}>
         <div className={styles.statValue}>{completedCount}</div>
@@ -135,8 +139,27 @@ export default function DsarPage() {
 
       {!isLoading && !error && (
         <>
-          {dsars.length > 0 && renderStats()}
-          {dsars.length === 0 ? renderEmpty() : (
+          {allDsars.length > 0 && renderStats()}
+          {allDsars.length > 0 && (
+            <div className={styles.filterBar}>
+              <select
+                className={styles.filterSelect}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="rejected">Rejected</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+              <span className="text-sm text-gray-500">{dsars.length} request{dsars.length !== 1 ? "s" : ""}</span>
+            </div>
+          )}
+          {dsars.length === 0 && allDsars.length === 0 ? renderEmpty() : dsars.length === 0 ? (
+            <div className="text-center py-12 text-sm text-gray-400">No requests match the selected filter.</div>
+          ) : (
             <DsarTable dsars={dsars} onUpdate={handleUpdate} onDelete={handleDelete} />
           )}
         </>

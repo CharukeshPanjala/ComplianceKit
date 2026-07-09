@@ -21,15 +21,15 @@ const styles = {
   fieldLabel: "text-xs text-gray-500",
   fieldValue: "text-sm text-gray-800 font-medium",
   label: "block text-sm font-medium text-gray-700 mb-1",
-  select: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
-  input: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-  textarea: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500",
+  select: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#D97706]",
+  input: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706]",
+  textarea: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#D97706]",
   checkRow: "flex items-center gap-2",
-  checkbox: "w-4 h-4 text-blue-600 border-gray-300 rounded cursor-pointer",
+  checkbox: "w-4 h-4 text-amber-500 border-gray-300 rounded cursor-pointer accent-amber-500",
   checkLabel: "text-sm text-gray-700",
   footer: "px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0",
   cancelBtn: "px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors",
-  saveBtn: "px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50",
+  saveBtn: "px-4 py-2 text-sm font-medium bg-[#D97706] hover:bg-[#B45309] text-white rounded-lg transition-colors disabled:opacity-50",
   error: "px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700",
 };
 
@@ -95,7 +95,7 @@ export const DsarDetailModal = ({ dsar, onClose, onSave }: Props) => {
           <div className={styles.titleBlock}>
             <div className={styles.title}>{dsar.request_type_label}</div>
             <div className={styles.subtitle}>
-              {dsar.requester_name ?? dsar.requester_email} · received {dsar.received_at ? new Date(dsar.received_at).toLocaleDateString() : "—"}
+              {dsar.requester_name ?? dsar.requester_email} · received {dsar.received_at ? new Date(dsar.received_at).toLocaleDateString() : "-"}
             </div>
           </div>
           <button className={styles.closeBtn} onClick={onClose}>
@@ -119,7 +119,7 @@ export const DsarDetailModal = ({ dsar, onClose, onSave }: Props) => {
                 <div className={styles.fieldLabel}>Due date</div>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className={styles.fieldValue}>
-                    {dsar.due_date ? new Date(dsar.due_date).toLocaleDateString() : "—"}
+                    {dsar.due_date ? new Date(dsar.due_date).toLocaleDateString() : "-"}
                   </span>
                   <DaysRemainingBadge
                     daysRemaining={dsar.days_remaining}
@@ -129,6 +129,12 @@ export const DsarDetailModal = ({ dsar, onClose, onSave }: Props) => {
                 </div>
               </div>
             </div>
+            {dsar.completed_at && (
+              <div className="mt-2">
+                <div className={styles.fieldLabel}>Completed on</div>
+                <div className={styles.fieldValue}>{new Date(dsar.completed_at).toLocaleDateString()}</div>
+              </div>
+            )}
             {dsar.description && (
               <div className="mt-2">
                 <div className={styles.fieldLabel}>Description</div>

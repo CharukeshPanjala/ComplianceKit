@@ -70,7 +70,6 @@ def _deadline_info(breach: BreachIncident) -> dict[str, Any]:
     discovered = breach.discovered_at
     if discovered.tzinfo is None:
         discovered = discovered.replace(tzinfo=timezone.utc)
-    deadline = discovered.replace(tzinfo=timezone.utc) if discovered.tzinfo is None else discovered
     from datetime import timedelta
     deadline = discovered + timedelta(hours=hours)
     now = datetime.now(timezone.utc)

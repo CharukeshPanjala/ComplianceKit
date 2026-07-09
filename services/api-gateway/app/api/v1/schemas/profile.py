@@ -11,6 +11,7 @@ from common.models.company_profile import (
 
 class ProfileCreate(BaseModel):
     """Fields required to create a company profile."""
+    tenant_name: str | None = None
     industry: Industry | None = None
     company_size: CompanySize | None = None
     b2b_or_b2c: B2BOrB2C | None = None
@@ -27,6 +28,7 @@ class ProfileCreate(BaseModel):
     dpo_name: str | None = None
     dpo_email: str | None = None
     legal_contact_email: str | None = None
+    previous_regulatory_action: bool | None = None
     data_categories_processed: list[str] | None = None
     processing_purposes: list[str] | None = None
     data_subject_categories: list[str] | None = None
@@ -38,6 +40,7 @@ class ProfileCreate(BaseModel):
 
 class ProfileUpdate(BaseModel):
     """Fields allowed to be updated on a company profile."""
+    tenant_name: str | None = None
     industry: Industry | None = None
     company_size: CompanySize | None = None
     b2b_or_b2c: B2BOrB2C | None = None
@@ -54,6 +57,7 @@ class ProfileUpdate(BaseModel):
     dpo_name: str | None = None
     dpo_email: str | None = None
     legal_contact_email: str | None = None
+    previous_regulatory_action: bool | None = None
     data_categories_processed: list[str] | None = None
     processing_purposes: list[str] | None = None
     data_subject_categories: list[str] | None = None
@@ -85,6 +89,7 @@ class ProfileResponse(BaseModel):
     dpo_name: str | None
     dpo_email: str | None
     legal_contact_email: str | None
+    previous_regulatory_action: bool | None
     data_categories_processed: list[str] | None
     processing_purposes: list[str] | None
     data_subject_categories: list[str] | None

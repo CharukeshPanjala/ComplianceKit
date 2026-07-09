@@ -106,6 +106,14 @@ export default function Step4Form({ initialData }: Props) {
     initialData?.cloud_providers?.filter((p) => !["aws", "azure", "gcp", "other"].includes(p)) ?? []
   );
 
+  // "other" isn't persisted as a literal value — infer it from leftover custom providers
+  const knownCloudProviders =
+    initialData?.cloud_providers?.filter((p) => ["aws", "azure", "gcp", "other"].includes(p)) ?? [];
+  const initialCloudProviders =
+    customProviders.length > 0 && !knownCloudProviders.includes("other")
+      ? [...knownCloudProviders, "other"]
+      : knownCloudProviders;
+
   // ── Form ─────────────────────────────────────────────────
 
   const {
@@ -118,7 +126,7 @@ export default function Step4Form({ initialData }: Props) {
     resolver: zodResolver(schema),
     defaultValues: {
       uses_cloud_services: initialData?.uses_cloud_services ?? undefined,
-      cloud_providers: initialData?.cloud_providers ?? [],
+      cloud_providers: initialCloudProviders,
       primary_cloud_region: initialData?.primary_cloud_region ?? "",
       has_on_premise_servers: initialData?.has_on_premise_servers ?? undefined,
     },
@@ -142,8 +150,10 @@ export default function Step4Form({ initialData }: Props) {
 
   const confirmCustomProvider = () => {
     const trimmed = customDraft.trim();
-    if (!trimmed || customProviders.includes(trimmed)) return;
-    setCustomProviders((prev) => [...prev, trimmed]);
+    if (!trimmed) return;
+    setCustomProviders((prev) =>
+      prev.some((p) => p.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed]
+    );
     setCustomDraft("");
   };
 

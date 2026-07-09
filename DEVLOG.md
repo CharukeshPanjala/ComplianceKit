@@ -5,6 +5,281 @@ Updated every time a ticket is closed.
 
 ---
 
+## Session — 2026-07-04 — Full Frontend UI Redesign (Sprint 5 Visual Overhaul)
+
+**Date:** 2026-07-04
+**Branch:** fix/sprint-5-touchups
+
+### What was built
+
+Full visual redesign of the ComplianceKit frontend across all portal pages and the onboarding flow. Executed as a multi-agent pipeline (Brain Agent → 10 Feature Area agents in parallel).
+
+**Design tokens (globals.css)**
+Added `@theme inline` block with 47 CSS custom properties: sidebar/accent/surface/border/text/regulation colours (GDPR=#7C3AED, NIS2=#0891B2, AI Act=#BE185D, amber=#D97706), radius scale, shadow scale.
+
+**Shared component library (10 new components in `src/components/ui/`)**
+Badge (10 variants), CountdownBadge, StatCard, EmptyState, FilterBar, GaugeRing (SVG arc gauge), ProgressBar, Stepper, RegulationBadge, Chip.
+
+**Sidebar**
+Rebuilt with 4 NAV_SECTIONS (OVERVIEW / COMPLIANCE / DATA OPERATIONS / SETTINGS), ShieldIcon logo, active amber border-l-3px, SoonBadge for locked items, sign-out footer.
+
+**Onboarding**
+- OnboardingTopBar (3-phase stepper replacing StepSidebar)
+- layout.tsx updated to TopBar layout
+- Step1Form: company size + B2B/B2C converted from pill/SelectCard to `<select>` elements
+- Step2RegulationPicker: 3 regulation cards with amber checkmark on selection
+- Step3Tracks + LiveRulesPanel + TrackQuestion: 2-column layout with live rule activation panel
+
+**Dashboard v2 — 9 new/rewritten components**
+- ExecutiveSummaryBar: 4 stat cards (overall score gauge, exposure, open issues, regulations covered)
+- CriticalAlertsPanel: top-4 urgency alerts (breach deadlines, overdue DSARs, high not-met regs)
+- RegulationHealthCards: 3-card grid with GaugeRing, severity breakdown, skeleton loader
+- ScoreTrendChart: rewritten to support optional `regulation` prop — single-line (existing gap view) or 4-line multi-regulation with mock data (overview)
+- GapChartsRow: severity donut + regulation bar chart (Recharts)
+- RiskExposurePanel: per-regulation exposure donut + table with formatted €amount
+- ComplianceMiniWidgets: DSAR status mini-pie + Vendor DPA status
+- RecentActivityFeed: 8 most recent events from assessments/DSARs/breaches, relative timestamps
+- DashboardContent: assembled all above + personalized greeting + maturity badge (Developing/Established/Advanced)
+
+**Feature pages restyled**
+Gap List: filter bar, bulk select, expandable rows, pagination (client-side, 20/page).
+Policies: amber accent, shadow-sm cards, "View →" link, "···" stub button.
+ROPA: table headers `#F8FAFC`, alternating rows, amber save buttons.
+Vendors: grey outlined edit button, `#F8FAFC` headers.
+Breach: stat cards, amber CTAs, renderStatusBadge(), countdown badge border updates.
+DSAR: stat cards, WorkflowDots sub-component, amber CTAs.
+
+### Key decisions
+
+- `LatestAssessment` (not `Assessment`) is the correct type for the dashboard — it has `regulation`, `score`, `status`, `not_met_rules` etc. `Assessment` has none of these at the top level.
+- `ScoreTrendChart` kept the optional `regulation?` prop to preserve existing GapSection single-line usage.
+- Severity distribution in GapChartsRow approximated from `not_met_rules * weights` since `LatestAssessment` carries no per-severity breakdown. Real data would require per-assessment gap fetches.
+- `Processor.dpa_signed: boolean` (not `dpa_status` string) — ComplianceMiniWidgets uses `dpa_signed` directly.
+- `BreachStatus` enum is `"draft" | "under_investigation" | ...` (no "OPEN") — CriticalAlertsPanel flags draft + under_investigation with deadline < 48h remaining.
+- Background agents cannot use the Write tool (no interactive user approval in background mode). Pivot: Brain Agent writes all files directly in the foreground conversation where permission prompts are visible.
+
+### Gotchas
+
+- Next.js typed routes: `Link href` requires `as any` cast for dynamic string hrefs — affects CriticalAlertsPanel, RegulationHealthCards, ComplianceMiniWidgets.
+- `BreachListResponse.breaches` (not `.incidents`) — caught by typecheck.
+- Recharts `Tooltip formatter` type: must return `[string, string]` tuple, not `(value: number) => string`.
+- Inline `style={{}}` is the correct exception for SVG dimensions and coloured dots (prop-computed values) — not a CLAUDE.md violation.
+
+### Files changed — 52 total
+- 15 new files in Sprint 1 (10 UI components + 5 onboarding)
+- 28 edited in Sprint 1 (dashboard, gaps, policies, ROPA, vendors, breach, DSAR, globals.css)
+- 9 new/rewritten in Sprint 2 (Dashboard v2 components)
+
+### Next
+
+- FA-D10: Profile Settings page (`/settings/profile`) — accordion form pre-populated from current profile, Save & Recalculate button triggers PATCH + 3 assessment POSTs.
+- E2E testing with Clerk test accounts before any customer-facing deployment.
+
+---
+
+## Session — 2026-07-05 to 2026-07-07 — Full Codebase Audit + Bug Fix Pipeline (Sprint 5 Hardening)
+
+**Date:** 2026-07-05 to 2026-07-07
+**Branch:** fix/sprint-5-touchups
+
+### What was built
+
+Full multi-agent codebase audit across the entire ComplianceKit stack (frontend + policy-engine + common), followed by systematic fixing of every issue found. Executed as a 3-layer pipeline:
+
+1. **11 sub-brain analysis agents** ran in parallel, each owning one domain (scorer logic, API contracts, data flow, type safety, UI/UX, dead code, em-dash enforcement, etc.)
+2. **3 verifier agents** (UX Flow, Data Contract, Logic+Consistency) independently validated sub-brain findings
+3. All confirmed issues prioritised (P0/P1/P2/P3/Dead Code) and fixed one by one
+
+**Total findings: P0=3, P1=12, P2=9, P3=7, Dead=5**
+
+---
+
+### P0 Fixes (data correctness, auth blocking)
+
+**P0-1 — AI Act Art.6 scoring logic bug (scorer.py)**
+`or []` coercion on `high_risk_ai_categories` made `is not None` always `True` — every tenant evaluated as "met" regardless of whether they answered the question.
+```python
+# Before
+high_risk = self.ai.get("high_risk_ai_categories") or []
+return self._result(rule, "met" if high_risk is not None else "unknown", {...})
+# After
+high_risk = self.ai.get("high_risk_ai_categories")
+if high_risk is None:
+    return self._result(rule, "unknown", {"reason": "gpai_usage_not_answered"})
+return self._result(rule, "met" if not high_risk else "not_met", {...})
+```
+
+**P0-2 — `"legitimate_interest"` typo (3 files)**
+`processing_purposes` in Step2Form, Step6Form, and ProfileSettingsContent all used `"legitimate_interest"` (no trailing `s`). The profile schema and scorer both key on `"legitimate_interests"`. Fixed in all 3 files.
+
+**P0-3 — Portal layout catch block blocked portal on API error**
+`catch` block in `(portal)/layout.tsx` was setting `isComplete = false` when the API was unreachable, causing infinite redirect to `/onboarding`. Fixed to `isComplete = true` — API unreachable means let them through.
+
+---
+
+### P1 Fixes (incorrect data shown to users)
+
+**P1-1 — ScoreTrendChart MOCK_DATA (ScoreTrendChart.tsx)**
+The multi-regulation overview view used hardcoded `MOCK_DATA` with fake monthly scores (Feb–Jul, GDPR/NIS2/AI Act all trending upward). Replaced with a single `useAssessmentHistory(undefined, 30)` call that fetches all regulations, then builds a real merged timeline. Each assessment run advances the running score for its regulation; `connectNulls` handles sparse data. Only regulations with actual assessments get a line.
+
+**P1-2 — RiskExposurePanel used total gaps divided by 3 (RiskExposurePanel.tsx)**
+Props changed from `gaps: Gap[]` (total, divided equally across regulations) to `gapsByRegulation: Record<string, Gap[]>` (real per-regulation gap lists). Exposure calculation now uses actual counts per regulation.
+
+**P1-3 — GapChartsRow hardcoded severity ratios (GapChartsRow.tsx)**
+Same fix — props changed to `gapsByRegulation`, bar chart now computes real per-regulation severity breakdown from actual gap data.
+
+**P1-4 — DeadlinesWidget hardcoded `regulation="GDPR"` (DashboardContent.tsx)**
+`DeadlinesWidget` was only showing GDPR deadlines. Fixed to iterate `gapsByRegulation` and pass all regulations' gaps.
+
+**P1-5 — QuickWinsWidget had no real assessment ID (DashboardContent.tsx)**
+Added `primaryAssessmentId` (first completed assessment) + `useAssessmentStats` hook so QuickWins pulls from real assessment data.
+
+**P1-6 — CountdownBadge thresholds wrong (CountdownBadge.tsx)**
+Red threshold was `< 24` hours (should be `< 6`), amber was `< 48` (should be `< 24`). Fixed to match regulatory deadlines: red = under 6h, amber = under 24h.
+
+**P1-7 — CountdownBadge shown on closed breaches (BreachTable.tsx)**
+Countdown badge rendered even when `b.status === "closed"`. Added `b.status !== "closed"` guard.
+
+**P1-8 — ExecutiveSummaryBar excluded `unknown` gaps from open count**
+`isOpen` predicate only matched `"not_met" | "partial"`. Added `"unknown"` — gaps with insufficient data are still open issues.
+
+**P1-9 — `/history` endpoint leaked raw UUID `regulation_id`**
+`AssessmentHistoryItem` was returning `regulation_id: uuid` instead of a human-readable regulation name. Fixed with a JOIN on the Regulation table:
+```python
+query = (
+    select(Assessment, Regulation.name.label("regulation_name"))
+    .join(Regulation, Assessment.regulation_id == Regulation.id)
+    ...
+)
+# Response now returns: "regulation": row.regulation_name
+```
+Updated `AssessmentHistoryItem.regulation_id: string` → `regulation: string` in the TypeScript interface.
+
+**P1-10 — GapDetailModal UNKNOWN_REASON_MAP key typo**
+Key `cannot_evaluate_technical_measure_without_additional_data` → `cannot_evaluate_technical_without_additional_data` (matches actual scorer output).
+
+**P1-11 — N/A (not_applicable_reason already human-readable)**
+Verifier flagged `not_applicable_reason` displaying raw code keys. Confirmed on inspection: `_applicability()` in the backend already returns full English sentences — no fix needed.
+
+**P1-12 — RegulationHealthCards `totalRules` denominator missing `partial_rules`**
+Denominator was `met + not_met + unknown`. Added `partial_rules` so the gauge denominator is correct. Required first adding `partial_rules: number | null` to the `LatestAssessment` TypeScript interface (backend already sends it).
+
+---
+
+### P2 Fixes (UX gaps)
+
+**P2-1 — GapsPageContent loading state was `null`**
+Loading state returned `null` (blank screen). Replaced with a spinner + "Loading gaps..." message.
+
+**P2-2 — GapsPageContent had no error state**
+Added `isError: gapsError` from `useGaps` and an error state in `renderContent` with a user-friendly message.
+
+**P2-3 — GapsPageContent status filter missing `not_applicable`, labels wrong**
+Added `not_applicable` as a filter option. All labels updated from raw enum values to human-readable strings (e.g., `"not_met"` → `"Not Met"`).
+
+**P2-4 — VendorTable delete had no confirmation**
+Delete button called `onDelete()` immediately. Wrapped in `window.confirm("Delete this vendor?")`.
+
+**P2-5 — DSAR page had no status filter**
+Added `statusFilter` state, a filter `<select>` in the header bar, and client-side filtering applied before passing to `DsarTable`.
+
+**P2-6 — DsarDetailModal didn't show `completed_at`**
+Added a `completed_at` field display when the field is present on the DSAR record.
+
+**P2-7 — N/A (breach/DSAR delete already had try/catch + toast)**
+Verifier flagged silent error swallowing — confirmed both already had proper error handling.
+
+**P2-8 — Dashboard never auto-triggered assessments on first load**
+Added `useTriggerAssessment` + `useRef` guard + `useEffect` to `DashboardContent`. On first render, any `never_run` regulations are auto-triggered once. Polling handles the `pending → running → completed` transition.
+
+**P2-9 — GapDetailModal UNKNOWN_REASON_MAP had only 3 generic keys**
+Expanded to 28 entries covering all scorer-specific reason keys across GDPR, NIS2, and AI Act, with user-facing guidance for each.
+
+---
+
+### P3 Fixes (polish, standards compliance)
+
+**P3-1 — Nested `<a>` inside `<Link>` in PolicyLibrary**
+`<a className="...">View →</a>` inside `<Link>` renders as nested anchors — invalid HTML. Changed inner element to `<span>`.
+
+**P3-2 — Sidebar footer showed placeholder name/avatar**
+Footer hardcoded `"User"` and `"U"`. Wired in `useUser` from Clerk — now shows real first name, email initial, and org role.
+
+**P3-3 — TopBar showed email in DOM**
+Removed email from rendered output. Name fallback changed from email to `user?.firstName ?? "there"`.
+
+**P3-4 — Step6Form tooltip em dashes (4 instances)**
+CLAUDE.md rule: no em dashes in customer-facing text. Replaced `—` with periods/commas in 4 tooltip strings.
+
+**P3-5 — GapsPageContent em dash fallbacks**
+`"—"` fallback strings for empty fields changed to `"N/A"`.
+
+**P3-6 — GapDetailModal em dash in `policy_required` message**
+Single em dash replaced with a period.
+
+**P3-7 — Inline Tailwind classNames in Step1Form, Step2Form, Step6Form**
+Moved all remaining inline classNames into the `const styles = {}` object per CLAUDE.md standard. Added `submitBtn`, `error`, `textarea`, `fieldLabel`, `asterisk`, `fieldError` entries across the 3 files.
+
+---
+
+### Dead Code Removed
+
+- **`AssessmentSection.tsx`** — deleted, no longer imported anywhere after dashboard v2
+- **`RegulationCard.tsx`** (dashboard version) — deleted; `Step2RegulationPicker.tsx` defines its own local `RegulationCard` component with the same name (different component, no import)
+- **`ScoreGauge.tsx`** — deleted, only used by the deleted `RegulationCard.tsx`
+- **`BreachTable.tsx` line 80** — `|| s === "open"` in `renderStatusBadge` dead alias removed; `"draft"` and `"open"` were both mapping to "Open" badge but `open` is not a valid `BreachStatus` value
+- **`breach.py` line 73** — redundant `deadline = discovered.replace(tzinfo=timezone.utc) if ...` assignment immediately overwritten by line 75. Removed.
+
+---
+
+### Navigation performance fix
+
+**Root cause:** No `loading.tsx` files existed on any portal route. Every nav click caused a blank-screen wait while Next.js completed the server round-trip before rendering anything.
+
+**Fix:** Created `PageSkeleton` shared component (animated pulse — title bar, stat cards, table rows) and `loading.tsx` for all 8 portal routes:
+- `/dashboard`, `/gaps`, `/policies`, `/ropa`, `/breach`, `/dsar`, `/vendors`, `/settings/profile`
+
+Navigation now shows the skeleton instantly on click; data loads behind it via TanStack Query.
+
+---
+
+### Key decisions
+
+- `gapsByRegulation: Record<string, Gap[]>` established as the standard prop type for any widget needing per-regulation breakdown (RiskExposurePanel, GapChartsRow, DeadlinesWidget).
+- `useAssessmentHistory(undefined, 30)` fetches all regulations at once; both single-line and multi-line chart views derived from the same dataset.
+- `loading.tsx` is the correct Next.js pattern for perceived instant navigation — it's a Suspense boundary that shows immediately, independent of server render time.
+- In dev mode (`pnpm dev`), Next.js does not prefetch routes and compiles on-demand — navigation will always be slower than a production build. The skeleton mitigates this.
+
+### Gotchas
+
+- `useAssessmentHistory` with `regulation = undefined` fetches all regulation history via the `/history` endpoint (no `regulation` query param). The hook signature already supports this — no changes needed.
+- P1-11 and P2-7 were listed as bugs in the audit report but confirmed non-issues on inspection. The audit report was stale — the backend already handled both correctly.
+- Deleting `RegulationCard.tsx` is safe: `Step2RegulationPicker.tsx` defines its own component with the same name locally — it never imports from the dashboard path.
+
+### Commits
+
+```
+fix(policy): fix ai act art.6 scoring logic, history uuid leak, and dead code (COM-125)
+fix(frontend): sprint 5 audit fixes across dashboard, gaps, breach, dsar, and onboarding (COM-125)
+docs: update devlog for sprint 5 audit and ui overhaul session (COM-125)
+fix(frontend): add loading.tsx skeletons to all portal routes for instant nav feedback
+```
+
+### Files changed
+
+**Backend (policy-engine)**
+- `services/policy-engine/app/engine/scorer.py` — Art.6 logic fix
+- `services/policy-engine/app/routers/assessments.py` — /history UUID leak fix
+- `services/policy-engine/app/routers/breach.py` — dead assignment removed
+- `services/policy-engine/app/workers/assessment.py` — minor cleanup
+
+**Frontend (61 files across 3 commits)**
+- New: `PageSkeleton.tsx`, `loading.tsx` x8, `ExecutiveSummaryBar.tsx`, `RegulationHealthCards.tsx`, `RiskExposurePanel.tsx`, `GapChartsRow.tsx`, `ComplianceMiniWidgets.tsx`, `RecentActivityFeed.tsx`, `CriticalAlertsPanel.tsx`, `LiveRulesPanel.tsx`, `LiveRulesPanelWrapper.tsx`, `OnboardingTopBar.tsx`, `Step2RegulationPicker.tsx`, `Step3Tracks.tsx`, `TrackQuestion.tsx`, 10 shared UI components, settings/profile page
+- Deleted: `AssessmentSection.tsx`, `RegulationCard.tsx`, `ScoreGauge.tsx`
+- Modified: `DashboardContent.tsx`, `ScoreTrendChart.tsx`, `GapDetailModal.tsx`, `GapsPageContent.tsx`, `DsarDetailModal.tsx`, `dsar/page.tsx`, `VendorTable.tsx`, `BreachTable.tsx`, `CountdownBadge.tsx`, `Sidebar.tsx`, `TopBar.tsx`, `PolicyLibrary.tsx`, `Step1Form.tsx`, `Step2Form.tsx`, `Step6Form.tsx`, `layout.tsx`, `assessment.ts`, `useLatestAssessments.ts`, `globals.css`
+
+---
+
 ---
 
 ## Sprint 0 — Foundation
@@ -2555,3 +2830,135 @@ Unknown rules are shown as gaps but excluded from score denominator — they don
   - COM-127: Production deploy — custom domain, SSL, smoke test
   - COM-128: MVP security checklist — secrets, auth, rate limiting, CORS, SQLi, XSS
 - `make seed-embeddings` needs to be run in production once Azure creds are set (RAG requires populated embeddings)
+
+---
+
+## Session — 2026-06-28 — Compliance engine reliability audit, Phase 1 (scorer bug fixes)
+
+**Date:** 2026-06-28
+**Branch:** fix/sprint-5-touchups
+
+### What was done
+
+Ran a full manual article-by-article audit of all 258 rules (GDPR 99 + NIS2 46 + EU AI Act 113) against the source regulation PDFs, looking for dangling field references and content drift. Findings written to `docs/article_audit_gdpr.md`, `docs/article_audit_nis2.md`, `docs/article_audit_ai_act.md`, rolled up in `docs/data_requirements_summary.md`. Full scope and build plan recorded in `CLAUDE.md` under "Epic 5.3 — Compliance Engine Reliability Overhaul".
+
+Fixed everything in Phase 1 (code bugs only — content drift and new data collection are separate later phases):
+
+- `services/policy-engine/app/engine/applicability.py` — fixed `ai_act_data.role`→`ai_role`, `high_risk_categories`→`high_risk_ai_categories`, `gpai_model`→`uses_gpai` (38 articles affected)
+- `services/policy-engine/app/engine/scorer.py` — same three field-name fixes in the AI Act scoring branches
+- `services/policy-engine/app/engine/scorer.py` — **major fix:** `_score_profile_field` had no regulation dispatch, just a flat `if n == X` chain on `article_number` alone. Since GDPR/NIS2/AI Act each restart article numbering near 1, colliding numbers (2, 3, 6, 22) were silently scored using whichever regulation's branch appeared first in the file — e.g. every NIS2 Art. 3 assessment was scored "met" using GDPR's jurisdiction check, ignoring real sector/entity data. Fixed by adding `regulation_name` to `Scorer.__init__` (mirrors `ApplicabilityEngine`'s existing pattern) and splitting into `_score_gdpr_field`/`_score_nis2_field`/`_score_ai_act_field`
+- Wrote real scoring logic for AI Act Art. 22 (authorised EU representative) — it previously had no branch of its own and silently inherited GDPR's Art. 22 (automated decisions) logic via the collision above
+- Verified `gdpr_data.transfer_mechanisms` is already correctly used in the Art. 44-49 scoring branch — the audit's complaint was about the `evaluation_logic` JSONB column on the `rules` table, which is descriptive metadata only and never read by any code at runtime
+- Added 28 new tests: one per previously-untested `profile_field` article (AI Act had zero scorer-level test coverage before this), plus dedicated collision-guard tests proving Art. 2/3/6/22 score correctly even when other regulations' data is present in the same profile
+
+### Key Decisions
+
+- `evaluation_logic`/`profile_field` JSONB columns on `rules` are documentation only — all real scoring logic lives in Python in `scorer.py`/`applicability.py`. Dangling references in that JSONB are a data-quality issue, not a functional bug, unless the matching Python code also has the wrong key (which it did for the three AI Act fields above)
+- Content drift (wrong article text under wrong numbers — 44/113 in AI Act, 10/46 in NIS2) is being treated as a separate phase, re-derived from the PDFs article-by-article with review before re-seeding, not a bulk rewrite
+- Decision made to eventually collect all missing data points (~50 across the three regulations) rather than leave permanent "unknown" gaps — tiered into onboarding checkboxes, a new Evidence Center (document upload + AI extraction, generalizing the DPA analyser pattern), and a small deferred tier — full list in `CLAUDE.md`
+
+### Gotchas
+
+- `Rule` has no `regulation_name` field on the real ORM model (only `regulation_id` FK) — the test helper's `rule.regulation_name` mock attribute doesn't exist in production, which is exactly why the collision bug went undetected: nothing in the runtime code path could have read it even if it tried
+- `Scorer` is always constructed with rules from a single regulation per assessment run (the worker loads `_get_rules(session, regulation.name)` scoped to one regulation), so the collision wasn't a "rules get fully mixed together" bug — it was a "the wrong `if` branch wins regardless of which regulation is actually running" bug, which is subtler and explains why it survived this long
+
+### What's left / next steps
+
+- Phase 2 (next): GDPR content fix — Art. 26 dangling `has_joint_controllers` reference + Arts. 30/37/49/58/88 nuance gaps. Cheap, one pass.
+- Phase 3: NIS2 content fix — re-derive Arts. 5, 6, 18, 24, 25, 38, 42, 43, 46 from `docs/Nis2.pdf`
+- Phase 4: AI Act content fix — 44 mismatched articles, highest priority Art. 99 (currently mislabeled as an aviation-security amendment; real content is the €35M/7% turnover penalties article)
+- Phase 5: new data collection (Tier A onboarding fields, Tier B Evidence Center)
+- Phase 6: customer transparency layer (plain-English gap explanations — mockups already reviewed, not built)
+- Phase 7: dangling-reference lint script in CI
+
+---
+
+## Session — 2026-06-28 (cont'd) — Phase 2: GDPR content fix
+
+**Date:** 2026-06-28
+**Branch:** fix/sprint-5-touchups
+
+### What was done
+
+Checked all 6 GDPR audit findings (Arts. 26, 30, 37, 49, 58, 88) against the actual current seed data before changing anything — 2 of the 6 (Arts. 30 and 49) turned out to already be accurate; the audit's complaint didn't match what's actually in `seed_gdpr.py`. Fixed the 3 that were real:
+
+- **Art. 26 (real bug)** — `evaluation_logic.condition` referenced `has_joint_controllers`, a field that doesn't exist anywhere. Replaced with an honest `document_required` block noting no profile field exists yet to gate this (joint-controller status is in the Tier A onboarding backlog, Epic 5.3 Phase 5)
+- **Art. 37** — `evaluation_logic.check` said "if DPO mandatory, has_compliance_officer == true" without ever computing "DPO mandatory" from anything. Rewrote to state plainly that the engine can only check whether a DPO exists, not whether one is legally required (no `is_public_authority` field exists)
+- **Art. 58** — `plain_english` stated the €20M/4% fine figures, which actually belong to Art. 83 (already correctly stated there) — Art. 58 is about supervisory powers, not fine amounts. Removed the duplicated/conflated figures, pointed to Art. 83 instead
+- **Art. 88** — judgment call: left `is_mandatory: True` as-is. The audit flagged this as "questionable" since Art. 88 is a permissive clause (Member States *may* legislate further), but in practice nearly every Member State has exercised this option, and the existing remediation hint already tells customers to check national law. Flagging this decision rather than silently picking a side.
+
+Since `packages/common/scripts/seeders/seed_gdpr.py` is insert-only and skips if GDPR is already seeded, the 3 already-seeded DB rows needed a direct one-off correction, not a re-seed. Wrote `packages/common/scripts/seeders/fix_gdpr_content_phase2.py` (ORM-based, no raw SQL) to patch the 3 rows directly; ran it locally against the dev DB and verified via `psql` that all 3 rows now hold the corrected content. Also updated `seed_gdpr.py` itself so a fresh install seeds the corrected content directly.
+
+### Key Decisions
+
+- When an already-seeded row needs a data correction (not a schema change), write a small one-off ORM script rather than re-running the full seeder (which is insert-only and would either skip or duplicate) or touching the DB with raw SQL
+- Always re-verify each audit finding against the current file content before "fixing" it — 2 of 6 GDPR findings were already stale by the time this phase started
+
+### What's left / next steps
+
+- Phase 3: NIS2 content fix — re-derive Arts. 5, 6, 18, 24, 25, 38, 42, 43, 46 from `docs/Nis2.pdf`
+- Phase 4: AI Act content fix (largest effort — 44 mismatched articles)
+- Phase 5: new data collection
+- Phase 6: customer transparency layer
+- Phase 7: dangling-reference lint script in CI
+
+---
+
+## Session — 2026-06-30 — Epic 5.3 Phases 3, 4, 5, 6
+
+**Date:** 2026-06-30
+**Branch:** fix/sprint-5-touchups
+
+### Phase 3 — NIS2 full content + renumber
+
+The NIS2 seed data had a non-constant offset from real Directive article numbers starting at Article 5. Full audit performed against `docs/Nis2.pdf` + EUR-Lex consolidated text:
+
+- 13 rows renumbered (DB5→7, DB6→12, DB7→9, DB9→10, DB10→11, DB12→16, DB14↔15 swap, DB16→17, DB17→19)
+- 2 duplicate articles resolved: Art. 12 (DB6 kept, DB11 deleted/merged); Art. 24 (DB19 deleted, DB24 kept)
+- 2 missing articles inserted: Art. 5 "Minimum harmonisation", Art. 6 "Definitions"
+- Back block (Arts. 38-46) content cascaded to match real titles
+- Art. 46 "Addressees" inserted (previously missing entirely from the DB)
+- Content corrections applied to Arts. 13, 18, 24, 25 (wrong titles/descriptions from drift)
+
+Implementation: two-pass negative-staging approach inside a single ORM transaction (flush between passes, one commit) — required because the real unique constraint is on `(regulation_id, article)` string column, not just `article_number`. Discovered this during execution; agent self-corrected. Written as `fix_nis2_full_renumber.py` (one-off ORM script) + `seed_nis2.py` updated for fresh installs.
+
+Scorer-critical articles `{2, 3, 18, 23, 27}` were never touched — verified before and after.
+
+### Phase 4 — Real scoring logic audit
+
+Audited 6 "unknown-by-default" articles (NIS2 Art 27, AI Act Arts 5/22/26/51, GDPR Art 26) directly against `scorer.py` source. Conclusion: no code changes needed — all six already extract maximum available signal from existing profile fields and correctly return `unknown` only where the missing data is a genuine gap (belonging to Phase 5). Avoids fabricating unfounded heuristics.
+
+### Phase 5 — Tier A onboarding fields (33 new fields)
+
+Added 33 new fields to `Step6Form.tsx` and wired them into `scorer.py`. No Alembic migration (all go inside existing JSONB columns). Fields added:
+
+**GDPR (14):** `has_erasure_process`, `has_restriction_process`, `has_portability_process`, `has_marketing_objection_process`, `uses_automated_decisions`, `has_joint_controllers`, `is_public_authority`, `processes_employee_data`, `processes_for_research`, `special_category_condition`, `transfer_destination_countries`, `derogation_types`, `has_bcr`, `has_public_incident_notification`
+
+**NIS2 (9, all conditional on `nis2InScope`):** `has_vulnerability_disclosure_policy`, `management_approved_security_measures`, `has_cyber_awareness_training`, `uses_encryption`, `has_asset_inventory`, `participates_in_info_sharing`, `uses_certified_products`, `nis2_registration_complete`, `has_public_incident_notification`
+
+**AI Act (10):** `has_ai_literacy_training`, `is_public_body`, `uses_chatbot`, `uses_synthetic_content`, `uses_emotion_recognition`, `has_ai_complaint_process`, `has_ai_explanation_process`, `prohibited_practice_flags`, `gpai_flops_above_threshold`, `has_gpai_eu_representative`
+
+Scorer changes: ~15 new branches added, 4 existing branches updated/replaced (GDPR Art 22 now reads `uses_automated_decisions` not AI Act data; Art 5 AI Act now reads `prohibited_practice_flags`; NIS2 Art 27 now resolves to met/not_met from `nis2_registration_complete`; AI Act Art 51 factors in `gpai_flops_above_threshold`).
+
+Gotcha: `prohibited_practice_flags` `None` (not answered) vs `[]` (explicitly none) must be distinguished. `self.ai.get("prohibited_practice_flags") or []` turns `None` into `[]` and returns `met` incorrectly. Fixed by checking `is None` explicitly first.
+
+475/475 policy-engine tests pass after rebuild.
+
+### Phase 6 — Guardrail lint script
+
+Created `packages/common/scripts/lint_profile_fields.py`: walks AST of all 3 seed files, extracts every `profile_field` value, validates against hardcoded allowlist of valid dot-notation paths (top-level `ProfileCreate` fields + JSONB sub-key allowlists for gdpr_data/nis2_data/ai_act_data). Fails with exit code 1 on any dangling reference.
+
+Added `make lint-fields` target + wired into `make test` so it runs as part of CI.
+
+### Key Decisions
+
+- Full NIS2 front-block re-audit chosen over "back-block only now, defer rest" — one pass of technical debt is better than compounding partial fixes
+- Art. 12 duplicate: DB6 (fuller content) kept, DB11 merged and deleted
+- Art. 24 duplicate: DB19 deleted, DB24 (correctly-numbered slot) kept
+- Phase 4: no code changes — honest `unknown` where data is genuinely missing is correct, not a bug to paper over
+- Phase 5 decision: "All 30 fields, one pass" + "Extend existing Step6Form sub-sections"
+- Lint script uses AST-level parsing (not regex) to extract field values — handles multiline dicts and string concatenation correctly
+
+### Next
+
+Sprint 5 MVP Hardening: COM-124 (Playwright E2E), COM-125 (error handling audit), COM-126 (perf baselines), COM-127 (prod deploy), COM-128 (security checklist).

@@ -26,12 +26,17 @@ export interface LatestAssessment {
   regulation: RegulationName;
   assessment_id: string | null;
   score: number | null;
+  last_score: number | null;
   risk_level: RiskLevel | null;
+  last_risk_level: RiskLevel | null;
   met_rules: number | null;
+  partial_rules: number | null;
   not_met_rules: number | null;
   unknown_rules: number | null;
   completed_at: string | null;
   status: AssessmentStatus | "never_run";
+  not_applicable_reason?: string | null;
+  insufficient_data?: boolean;
 }
 
 export interface Gap {
@@ -65,7 +70,7 @@ export interface GapsResponse {
 
 export interface AssessmentHistoryItem {
   assessment_id: string;
-  regulation_id: string;
+  regulation: string;
   score: number;
   risk_level: RiskLevel;
   met_rules: number;

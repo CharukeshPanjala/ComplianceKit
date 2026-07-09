@@ -99,6 +99,7 @@ async def run_assessment(ctx: dict, assessment_id: str) -> dict:
             scorer = Scorer(
                 profile=profile,
                 applicability_results=applicability_results,
+                regulation_name=regulation.name,
             )
             scoring_results = scorer.evaluate()
             score_summary = scorer.calculate_overall_score(scoring_results)
@@ -173,7 +174,7 @@ async def run_assessment(ctx: dict, assessment_id: str) -> dict:
             # ── Update assessment ─────────────────────────────────────────────
             assessment.status = AssessmentStatus.COMPLETED
             assessment.score = score_summary["score"]
-            assessment.risk_level = RiskLevel(score_summary["risk_level"])
+            assessment.risk_level = RiskLevel(score_summary["risk_level"]) if score_summary["risk_level"] else None
             assessment.total_rules = len(rules)
             assessment.applicable_rules = score_summary["applicable_rules"]
             assessment.met_rules = score_summary["met_rules"]

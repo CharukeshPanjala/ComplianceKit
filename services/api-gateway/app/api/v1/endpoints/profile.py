@@ -28,16 +28,18 @@ async def create_profile(
             detail="Profile already exists for this tenant",
         )
 
-    # Get tenant name for denormalisation
+    # Get tenant name for denormalisation (fallback only — body.tenant_name wins if provided)
     tenant_result = await db.execute(
         select(Tenant).where(Tenant.tenant_id == claims.tenant_id)
     )
     tenant = tenant_result.scalar_one_or_none()
 
+    profile_data = body.model_dump(exclude_none=True)
+    profile_data.setdefault("tenant_name", tenant.name if tenant else claims.tenant_id)
+
     profile = CompanyProfile(
         tenant_id=claims.tenant_id,
-        tenant_name=tenant.name if tenant else None,
-        **body.model_dump(exclude_none=True),
+        **profile_data,
     )
     db.add(profile)
     await db.flush()

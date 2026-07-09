@@ -5,10 +5,10 @@
 const styles = {
   badge: {
     base: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold tabular-nums",
-    critical: "bg-red-100 text-red-700",
-    warning: "bg-amber-100 text-amber-700",
-    ok: "bg-green-100 text-green-700",
-    done: "bg-gray-100 text-gray-500",
+    critical: "bg-red-100 text-red-700 border border-red-200",
+    warning: "bg-amber-100 text-amber-700 border border-amber-200",
+    ok: "bg-green-100 text-green-700 border border-green-200",
+    done: "bg-gray-100 text-gray-500 border border-gray-200",
   },
   dot: {
     base: "w-1.5 h-1.5 rounded-full",

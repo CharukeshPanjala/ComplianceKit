@@ -7,10 +7,10 @@ import { POLICY_TYPE_LABELS, type Policy, type PolicyStatus } from "@/lib/polici
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<PolicyStatus, string> = {
-  draft: "bg-amber-50 text-amber-700 border border-amber-100",
+  draft: "bg-blue-50 text-blue-700 border border-blue-200",
   under_review: "bg-blue-50 text-blue-700 border border-blue-100",
-  active: "bg-green-50 text-green-700 border border-green-100",
-  archived: "bg-gray-100 text-gray-500 border border-gray-200",
+  active: "bg-green-50 text-green-700 border border-green-200",
+  archived: "bg-gray-100 text-gray-600 border border-gray-200",
 };
 
 const STATUS_LABEL: Record<PolicyStatus, string> = {
@@ -24,7 +24,7 @@ const STATUS_LABEL: Record<PolicyStatus, string> = {
 
 const styles = {
   grid: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4",
-  card: "block bg-white border border-gray-100 rounded-2xl p-5 hover:border-[#0F2044]/30 hover:shadow-sm transition-all",
+  card: "block bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:border-[#0F2044]/30 hover:shadow-md transition-all",
   cardHeader: "flex items-start justify-between gap-2 mb-2",
   cardTitle: "text-sm font-semibold text-gray-900",
   cardType: "text-xs text-gray-400 mt-0.5",
@@ -33,9 +33,9 @@ const styles = {
   version: "text-xs text-gray-400",
   aiTag: "text-xs text-blue-500",
   empty: "text-center py-16",
-  emptyTitle: "text-base font-semibold text-gray-700 mb-1",
+  emptyTitle: "text-base font-semibold text-[#0F172A] mb-1",
   emptySubtitle: "text-sm text-gray-400 mb-4",
-  emptyBtn: "px-4 py-2 bg-[#0F2044] text-white text-sm font-semibold rounded-xl hover:bg-[#1a3366] transition-colors",
+  emptyBtn: "px-4 py-2 bg-[#D97706] text-white text-sm font-semibold rounded-xl hover:bg-[#B45309] transition-colors",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,13 +70,17 @@ export const PolicyLibrary = ({ policies, onGenerateClick }: PolicyLibraryProps)
               <p className={styles.cardTitle}>{policy.title}</p>
               <p className={styles.cardType}>{policy.type ? POLICY_TYPE_LABELS[policy.type] : "Policy"}</p>
             </div>
-            {policy.status && (
-              <span className={`${styles.badge} ${STATUS_BADGE[policy.status]}`}>{STATUS_LABEL[policy.status]}</span>
-            )}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {policy.status && (
+                <span className={`${styles.badge} ${STATUS_BADGE[policy.status]}`}>{STATUS_LABEL[policy.status]}</span>
+              )}
+              <button className="text-gray-400 hover:text-gray-600 p-1 rounded text-lg leading-none">···</button>
+            </div>
           </div>
           <div className={styles.cardFooter}>
             <span className={styles.version}>Version {policy.current_version}</span>
             {policy.is_ai_enhanced && <span className={styles.aiTag}>✨ AI-enhanced</span>}
+            <span className="text-[#D97706] text-sm font-medium">View →</span>
           </div>
         </Link>
       ))}

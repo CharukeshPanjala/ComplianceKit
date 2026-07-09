@@ -133,6 +133,19 @@ def scalars_result(values):
     return r
 
 
+def make_mock_row(assessment, regulation_name="GDPR"):
+    row = MagicMock()
+    row.Assessment = assessment
+    row.regulation_name = regulation_name
+    return row
+
+
+def rows_result(rows):
+    r = MagicMock()
+    r.all.return_value = rows
+    return r
+
+
 @pytest.fixture
 def client():
     mock_session = AsyncMock()
@@ -526,11 +539,11 @@ class TestGetHistory:
     def test_returns_completed_assessments(self, client):
         """Returns list of completed assessments."""
         test_client, mock_session = client
-        assessments = [
-            make_mock_assessment(assessment_id="asm_1", score=72),
-            make_mock_assessment(assessment_id="asm_2", score=65),
+        rows = [
+            make_mock_row(make_mock_assessment(assessment_id="asm_1", score=72), "GDPR"),
+            make_mock_row(make_mock_assessment(assessment_id="asm_2", score=65), "NIS2"),
         ]
-        mock_session.execute = AsyncMock(return_value=scalars_result(assessments))
+        mock_session.execute = AsyncMock(return_value=rows_result(rows))
 
         response = test_client.get("/api/v1/assessments/history")
         assert response.status_code == 200
@@ -592,8 +605,8 @@ class TestGetHistory:
     def test_history_contains_required_fields(self, client):
         """Each history item has required fields."""
         test_client, mock_session = client
-        assessment = make_mock_assessment(assessment_id="asm_1", score=72)
-        mock_session.execute = AsyncMock(return_value=scalars_result([assessment]))
+        row = make_mock_row(make_mock_assessment(assessment_id="asm_1", score=72), "GDPR")
+        mock_session.execute = AsyncMock(return_value=rows_result([row]))
 
         response = test_client.get("/api/v1/assessments/history")
         item = response.json()["history"][0]

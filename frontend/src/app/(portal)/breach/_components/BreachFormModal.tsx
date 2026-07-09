@@ -13,23 +13,23 @@ const styles = {
   closeBtn: "p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500",
   body: "px-6 py-5 space-y-4",
   label: "block text-sm font-medium text-gray-700 mb-1",
-  input: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-  select: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
-  textarea: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500",
+  input: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706]",
+  select: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#D97706]",
+  textarea: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#D97706]",
   checkRow: "flex items-center gap-2",
   checkbox: "w-4 h-4 text-blue-600 border-gray-300 rounded cursor-pointer",
   checkLabel: "text-sm text-gray-700",
   hint: "text-xs text-amber-600 mt-1",
   footer: "px-6 py-4 border-t border-gray-100 flex justify-end gap-3",
   cancelBtn: "px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors",
-  submitBtn: "px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50",
+  submitBtn: "px-4 py-2 text-sm font-medium bg-[#D97706] hover:bg-[#B45309] text-white rounded-lg transition-colors disabled:opacity-50",
   error: "px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700",
 };
 
 const REGULATION_HINTS: Record<string, string> = {
-  gdpr: "GDPR Art. 33 — 72-hour notification window to DPA",
-  nis2: "NIS2 Art. 23 — 24-hour notification window to authority",
-  both: "Both apply — 24-hour window (tightest deadline)",
+  gdpr: "GDPR Art. 33: 72-hour notification window to DPA",
+  nis2: "NIS2 Art. 23: 24-hour notification window to authority",
+  both: "Both apply, 24-hour window (tightest deadline)",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────

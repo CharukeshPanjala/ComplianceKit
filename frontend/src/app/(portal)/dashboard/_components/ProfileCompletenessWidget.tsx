@@ -129,7 +129,7 @@ export const ProfileCompletenessWidget = ({ profile }: ProfileCompletenessWidget
         </div>
       ))}
       {allDone && (
-        <p className={styles.allDone}>✓ Profile complete — assessments are fully optimised</p>
+        <p className={styles.allDone}>✓ Profile complete. Assessments are fully optimised</p>
       )}
     </div>
   );

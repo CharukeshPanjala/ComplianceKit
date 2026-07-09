@@ -90,7 +90,7 @@ class TestApplicabilityUniversalFilters:
         rule = make_rule(check_type="informational")
         profile = make_profile(
             company_size="51-200",
-            nis2_data={"nis2_sectors": ["energy"], "entity_type": "essential"}
+            nis2_data={"sectors": ["energy"], "entity_type": "essential"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         results = engine.evaluate()
@@ -280,7 +280,7 @@ class TestApplicabilityGDPR:
     def test_art22_applicable_with_ai(self):
         """Art. 22 applicable when company uses AI."""
         rule = make_rule(article_number=22, check_type="profile_field")
-        profile = make_profile(ai_act_data={"uses_ai": True, "role": "deployer"})
+        profile = make_profile(ai_act_data={"uses_ai": True, "ai_role": "deployer"})
         engine = ApplicabilityEngine(profile, [rule], "GDPR")
         assert engine.evaluate()[0].is_applicable is True
 
@@ -404,7 +404,7 @@ class TestApplicabilityNIS2:
         return make_profile(
             company_size=kwargs.get("company_size", "51-200"),
             nis2_data=kwargs.get("nis2_data", {
-                "nis2_sectors": ["energy"],
+                "sectors": ["energy"],
                 "entity_type": "important"
             })
         )
@@ -412,7 +412,7 @@ class TestApplicabilityNIS2:
     def test_all_nis2_skipped_when_no_sectors(self):
         """All NIS2 rules skipped when not in any covered sector."""
         rule = make_rule(article_number=21, check_type="technical")
-        profile = self._nis2_profile(nis2_data={"nis2_sectors": [], "entity_type": ""})
+        profile = self._nis2_profile(nis2_data={"sectors": [], "entity_type": ""})
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].reason == "not_in_nis2_covered_sector"
 
@@ -442,6 +442,36 @@ class TestApplicabilityNIS2:
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].reason == "company_size_exempt_from_nis2"
 
+    def test_small_company_in_digital_infrastructure_not_exempt(self):
+        """11-50 employee companies in digital_infrastructure are size-independent."""
+        rule = make_rule(article_number=21, check_type="technical")
+        profile = self._nis2_profile(
+            company_size="11-50",
+            nis2_data={"sectors": ["digital_infrastructure"], "entity_type": "important"},
+        )
+        engine = ApplicabilityEngine(profile, [rule], "NIS2")
+        assert engine.evaluate()[0].is_applicable is True
+
+    def test_small_company_in_public_administration_not_exempt(self):
+        """11-50 employee public administration entities are size-independent."""
+        rule = make_rule(article_number=21, check_type="technical")
+        profile = self._nis2_profile(
+            company_size="1-10",
+            nis2_data={"sectors": ["public_administration"], "entity_type": "important"},
+        )
+        engine = ApplicabilityEngine(profile, [rule], "NIS2")
+        assert engine.evaluate()[0].is_applicable is True
+
+    def test_small_company_in_managed_services_still_exempt(self):
+        """11-50 employee managed service providers still follow the size cap."""
+        rule = make_rule(article_number=21, check_type="technical")
+        profile = self._nis2_profile(
+            company_size="11-50",
+            nis2_data={"sectors": ["managed_services"], "entity_type": "important"},
+        )
+        engine = ApplicabilityEngine(profile, [rule], "NIS2")
+        assert engine.evaluate()[0].reason == "company_size_exempt_from_nis2"
+
     def test_medium_company_in_scope_for_nis2(self):
         """51-200 employee companies are in NIS2 scope."""
         rule = make_rule(article_number=21, check_type="technical")
@@ -467,7 +497,7 @@ class TestApplicabilityNIS2:
         """Art. 32 only applies to essential entities."""
         rule = make_rule(article_number=32, check_type="informational")
         profile = self._nis2_profile(
-            nis2_data={"nis2_sectors": ["energy"], "entity_type": "important"}
+            nis2_data={"sectors": ["energy"], "entity_type": "important"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         # informational is caught first
@@ -477,7 +507,7 @@ class TestApplicabilityNIS2:
         """Art. 32 applicable for essential entities (non-informational version)."""
         rule = make_rule(article_number=32, check_type="policy_required")
         profile = self._nis2_profile(
-            nis2_data={"nis2_sectors": ["energy"], "entity_type": "essential"}
+            nis2_data={"sectors": ["energy"], "entity_type": "essential"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].is_applicable is True
@@ -486,7 +516,7 @@ class TestApplicabilityNIS2:
         """Art. 32 (proactive supervision) not applicable to important entities."""
         rule = make_rule(article_number=32, check_type="policy_required")
         profile = self._nis2_profile(
-            nis2_data={"nis2_sectors": ["energy"], "entity_type": "important"}
+            nis2_data={"sectors": ["energy"], "entity_type": "important"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].reason == "proactive_supervision_only_for_essential_entities"
@@ -495,7 +525,7 @@ class TestApplicabilityNIS2:
         """Art. 33 (reactive supervision) not applicable to essential entities."""
         rule = make_rule(article_number=33, check_type="policy_required")
         profile = self._nis2_profile(
-            nis2_data={"nis2_sectors": ["energy"], "entity_type": "essential"}
+            nis2_data={"sectors": ["energy"], "entity_type": "essential"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].reason == "reactive_supervision_only_for_important_entities"
@@ -504,7 +534,7 @@ class TestApplicabilityNIS2:
         """Art. 33 (reactive supervision) applicable to important entities."""
         rule = make_rule(article_number=33, check_type="policy_required")
         profile = self._nis2_profile(
-            nis2_data={"nis2_sectors": ["energy"], "entity_type": "important"}
+            nis2_data={"sectors": ["energy"], "entity_type": "important"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].is_applicable is True
@@ -513,7 +543,7 @@ class TestApplicabilityNIS2:
         """Art. 28 not applicable for non-DNS sectors."""
         rule = make_rule(article_number=28, check_type="policy_required")
         profile = self._nis2_profile(
-            nis2_data={"nis2_sectors": ["energy", "transport"], "entity_type": "essential"}
+            nis2_data={"sectors": ["energy", "transport"], "entity_type": "essential"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].reason == "domain_database_only_for_dns_tld_providers"
@@ -522,7 +552,7 @@ class TestApplicabilityNIS2:
         """Art. 28 applicable for DNS service providers."""
         rule = make_rule(article_number=28, check_type="policy_required")
         profile = self._nis2_profile(
-            nis2_data={"nis2_sectors": ["dns_services"], "entity_type": "essential"}
+            nis2_data={"sectors": ["dns_services"], "entity_type": "essential"}
         )
         engine = ApplicabilityEngine(profile, [rule], "NIS2")
         assert engine.evaluate()[0].is_applicable is True
@@ -534,9 +564,9 @@ class TestApplicabilityAIAct:
     def _ai_profile(self, **kwargs):
         return make_profile(ai_act_data=kwargs.get("ai_act_data", {
             "uses_ai": True,
-            "role": "provider",
-            "high_risk_categories": ["employment"],
-            "gpai_model": False,
+            "ai_role": "provider",
+            "high_risk_ai_categories": ["employment"],
+            "uses_gpai": False,
         }))
 
     def test_all_ai_act_skipped_when_no_ai(self):
@@ -569,8 +599,8 @@ class TestApplicabilityAIAct:
         """Art. 6 (classification) always applicable — excluded from high-risk filter."""
         rule = make_rule(article_number=6, check_type="profile_field")
         profile = make_profile(ai_act_data={
-            "uses_ai": True, "role": "deployer",
-            "high_risk_categories": [], "gpai_model": False
+            "uses_ai": True, "ai_role": "deployer",
+            "high_risk_ai_categories": [], "uses_gpai": False
         })
         engine = ApplicabilityEngine(profile, [rule], "EU_AI_ACT")
         assert engine.evaluate()[0].is_applicable is True
@@ -579,8 +609,8 @@ class TestApplicabilityAIAct:
         """Art. 7 (classification amendments) always applicable."""
         rule = make_rule(article_number=7, check_type="profile_field")
         profile = make_profile(ai_act_data={
-            "uses_ai": True, "role": "deployer",
-            "high_risk_categories": [], "gpai_model": False
+            "uses_ai": True, "ai_role": "deployer",
+            "high_risk_ai_categories": [], "uses_gpai": False
         })
         engine = ApplicabilityEngine(profile, [rule], "EU_AI_ACT")
         assert engine.evaluate()[0].is_applicable is True
@@ -590,8 +620,8 @@ class TestApplicabilityAIAct:
         for article_num in [8, 9, 10, 11, 12, 13, 14, 15, 30, 40, 49]:
             rule = make_rule(article_number=article_num, check_type="document_required")
             profile = make_profile(ai_act_data={
-                "uses_ai": True, "role": "deployer",
-                "high_risk_categories": [], "gpai_model": False
+                "uses_ai": True, "ai_role": "deployer",
+                "high_risk_ai_categories": [], "uses_gpai": False
             })
             engine = ApplicabilityEngine(profile, [rule], "EU_AI_ACT")
             result = engine.evaluate()[0]
@@ -604,8 +634,8 @@ class TestApplicabilityAIAct:
         for article_num in [16, 17, 18, 20, 21, 24, 25]:
             rule = make_rule(article_number=article_num, check_type="document_required")
             profile = make_profile(ai_act_data={
-                "uses_ai": True, "role": "deployer",
-                "high_risk_categories": ["employment"], "gpai_model": False
+                "uses_ai": True, "ai_role": "deployer",
+                "high_risk_ai_categories": ["employment"], "uses_gpai": False
             })
             engine = ApplicabilityEngine(profile, [rule], "EU_AI_ACT")
             result = engine.evaluate()[0]
@@ -633,8 +663,8 @@ class TestApplicabilityAIAct:
         for article_num in [26, 27]:
             rule = make_rule(article_number=article_num, check_type="policy_required")
             profile = make_profile(ai_act_data={
-                "uses_ai": True, "role": "deployer",
-                "high_risk_categories": ["employment"], "gpai_model": False
+                "uses_ai": True, "ai_role": "deployer",
+                "high_risk_ai_categories": ["employment"], "uses_gpai": False
             })
             engine = ApplicabilityEngine(profile, [rule], "EU_AI_ACT")
             assert engine.evaluate()[0].is_applicable is True, \
@@ -643,8 +673,8 @@ class TestApplicabilityAIAct:
     def test_role_both_applies_provider_and_deployer_obligations(self):
         """Role 'both' applies provider AND deployer obligations."""
         profile = make_profile(ai_act_data={
-            "uses_ai": True, "role": "both",
-            "high_risk_categories": ["employment"], "gpai_model": False
+            "uses_ai": True, "ai_role": "both",
+            "high_risk_ai_categories": ["employment"], "uses_gpai": False
         })
         provider_rule = make_rule(article_number=16, check_type="document_required")
         deployer_rule = make_rule(article_number=26, check_type="policy_required")
@@ -658,8 +688,8 @@ class TestApplicabilityAIAct:
         for article_num in range(51, 57):
             rule = make_rule(article_number=article_num, check_type="document_required")
             profile = make_profile(ai_act_data={
-                "uses_ai": True, "role": "provider",
-                "high_risk_categories": [], "gpai_model": False
+                "uses_ai": True, "ai_role": "provider",
+                "high_risk_ai_categories": [], "uses_gpai": False
             })
             engine = ApplicabilityEngine(profile, [rule], "EU_AI_ACT")
             result = engine.evaluate()[0]
@@ -672,8 +702,8 @@ class TestApplicabilityAIAct:
         for article_num in range(51, 57):
             rule = make_rule(article_number=article_num, check_type="document_required")
             profile = make_profile(ai_act_data={
-                "uses_ai": True, "role": "provider",
-                "high_risk_categories": [], "gpai_model": True
+                "uses_ai": True, "ai_role": "provider",
+                "high_risk_ai_categories": [], "uses_gpai": True
             })
             engine = ApplicabilityEngine(profile, [rule], "EU_AI_ACT")
             assert engine.evaluate()[0].is_applicable is True, \
@@ -690,32 +720,32 @@ class TestScorerCheckTypes:
     def test_policy_required_returns_unknown(self):
         """policy_required rules return unknown — need policy verification."""
         rule = make_rule(check_type="policy_required", article_number=5)
-        scorer = Scorer(make_profile(), [make_applicability_result(rule)])
+        scorer = Scorer(make_profile(), [make_applicability_result(rule)], "GDPR")
         assert scorer.evaluate()[0].status == "unknown"
 
     def test_technical_returns_unknown(self):
         """technical rules return unknown — need technical verification."""
         rule = make_rule(check_type="technical", article_number=32)
-        scorer = Scorer(make_profile(), [make_applicability_result(rule)])
+        scorer = Scorer(make_profile(), [make_applicability_result(rule)], "GDPR")
         assert scorer.evaluate()[0].status == "unknown"
 
     def test_document_required_returns_unknown(self):
         """document_required rules return unknown."""
         rule = make_rule(check_type="document_required", article_number=13)
-        scorer = Scorer(make_profile(), [make_applicability_result(rule)])
+        scorer = Scorer(make_profile(), [make_applicability_result(rule)], "GDPR")
         assert scorer.evaluate()[0].status == "unknown"
 
     def test_not_applicable_rules_excluded_from_scoring(self):
         """Rules marked not applicable are completely excluded."""
         rule = make_rule(check_type="profile_field", article_number=33)
         ar = make_applicability_result(rule, is_applicable=False, reason="informational_only")
-        scorer = Scorer(make_profile(), [ar])
+        scorer = Scorer(make_profile(), [ar], "GDPR")
         assert scorer.evaluate() == []
 
     def test_evidence_recorded_for_unknown_rules(self):
         """Unknown rules have evidence explaining why they can't be evaluated."""
         rule = make_rule(check_type="policy_required")
-        scorer = Scorer(make_profile(), [make_applicability_result(rule)])
+        scorer = Scorer(make_profile(), [make_applicability_result(rule)], "GDPR")
         result = scorer.evaluate()[0]
         assert "reason" in result.evidence
         assert "policy_required" in result.evidence["reason"]
@@ -727,7 +757,7 @@ class TestScorerGDPRRules:
     def _score_article(self, article_num, profile=None, check_type="profile_field"):
         rule = make_rule(article_number=article_num, check_type=check_type)
         ar = make_applicability_result(rule)
-        scorer = Scorer(profile or make_profile(), [ar])
+        scorer = Scorer(profile or make_profile(), [ar], "GDPR")
         results = scorer.evaluate()
         return results[0] if results else None
 
@@ -861,6 +891,148 @@ class TestScorerGDPRRules:
         for article_num in [44, 45, 46]:
             assert self._score_article(article_num, profile).status == "met"
 
+    # Art. 3 — Territorial scope
+    def test_art3_met_with_jurisdiction(self):
+        assert self._score_article(3).status == "met"
+
+    # Art. 7 — Consent conditions
+    def test_art7_unknown(self):
+        assert self._score_article(7).status == "unknown"
+
+    # Art. 9 — Special categories
+    def test_art9_met_without_special_categories(self):
+        assert self._score_article(9).status == "met"
+
+    def test_art9_unknown_with_special_categories(self):
+        profile = make_profile(data_categories_processed=["email", "health"])
+        assert self._score_article(9, profile).status == "unknown"
+
+    # Art. 10 — Criminal conviction data
+    def test_art10_met_without_criminal_data(self):
+        assert self._score_article(10).status == "met"
+
+    def test_art10_unknown_with_criminal_data(self):
+        profile = make_profile(data_categories_processed=["email", "criminal_convictions"])
+        assert self._score_article(10, profile).status == "unknown"
+
+    # Art. 19 — Notification to third parties
+    def test_art19_met_without_processors(self):
+        gdpr = {**make_profile()["gdpr_data"], "uses_data_processors": False}
+        assert self._score_article(19, make_profile(gdpr_data=gdpr)).status == "met"
+
+    def test_art19_unknown_with_processors(self):
+        assert self._score_article(19).status == "unknown"
+
+    # Art. 20 — Data portability
+    def test_art20_unknown(self):
+        assert self._score_article(20).status == "unknown"
+
+    # Art. 27 — EU representative
+    def test_art27_unknown(self):
+        assert self._score_article(27).status == "unknown"
+
+    # Cross-regulation collision guards — these article numbers also exist
+    # in NIS2/AI Act; confirm GDPR's branch is reached only when the rule
+    # actually belongs to GDPR (regulation_name dispatch, not article number).
+    def test_art3_not_affected_by_nis2_data_present(self):
+        """GDPR Art. 3 must not be influenced by nis2_data sitting in the same profile."""
+        profile = make_profile(nis2_data={"sectors": [], "entity_type": ""})
+        assert self._score_article(3, profile).status == "met"
+
+    def test_art6_not_affected_by_ai_act_data_present(self):
+        """GDPR Art. 6 must not be influenced by ai_act_data sitting in the same profile."""
+        profile = make_profile(ai_act_data={"uses_ai": True, "high_risk_ai_categories": ["employment"]})
+        assert self._score_article(6, profile).status == "met"
+
+
+class TestScorerAIActRules:
+    """Tests for EU AI Act-specific scoring logic."""
+
+    def _ai_act_scorer(self, article_num, ai_act_data=None, profile_kwargs=None):
+        rule = make_rule(article_number=article_num, check_type="profile_field")
+        profile = make_profile(
+            ai_act_data=ai_act_data if ai_act_data is not None else {
+                "uses_ai": True, "ai_role": "provider", "high_risk_ai_categories": ["employment"],
+            },
+            **(profile_kwargs or {}),
+        )
+        scorer = Scorer(profile, [make_applicability_result(rule)], "EU_AI_ACT")
+        results = scorer.evaluate()
+        return results[0] if results else None
+
+    # Art. 2 — Scope
+    def test_art2_met_with_ai_and_role(self):
+        assert self._ai_act_scorer(2).status == "met"
+
+    def test_art2_partial_without_role(self):
+        result = self._ai_act_scorer(2, ai_act_data={"uses_ai": True, "ai_role": ""})
+        assert result.status == "partial"
+
+    def test_art2_not_influenced_by_nis2_data_present(self):
+        """AI Act Art. 2 collides with NIS2's `n in {2,3}` branch — must use ai_act_data, not nis2_data."""
+        profile = make_profile(
+            ai_act_data={"uses_ai": True, "ai_role": "provider"},
+            nis2_data={"sectors": [], "entity_type": ""},
+        )
+        rule = make_rule(article_number=2, check_type="profile_field")
+        scorer = Scorer(profile, [make_applicability_result(rule)], "EU_AI_ACT")
+        assert scorer.evaluate()[0].status == "met"
+
+    # Art. 5 — Prohibited practices
+    def test_art5_unknown(self):
+        assert self._ai_act_scorer(5).status == "unknown"
+
+    # Art. 6 — High-risk classification
+    def test_art6_met_with_high_risk_categories(self):
+        assert self._ai_act_scorer(6).status == "met"
+
+    def test_art6_not_influenced_by_gdpr_data_present(self):
+        """AI Act Art. 6 collides with GDPR's lawful-basis branch — must use high_risk_ai_categories, not lawful_bases."""
+        gdpr = {**make_profile()["gdpr_data"], "lawful_bases": []}
+        profile = make_profile(
+            gdpr_data=gdpr,
+            ai_act_data={"uses_ai": True, "high_risk_ai_categories": ["employment"]},
+        )
+        rule = make_rule(article_number=6, check_type="profile_field")
+        scorer = Scorer(profile, [make_applicability_result(rule)], "EU_AI_ACT")
+        assert scorer.evaluate()[0].status == "met"
+
+    # Art. 22 — Authorised representative
+    def test_art22_unknown_for_non_eu_provider(self):
+        result = self._ai_act_scorer(22, ai_act_data={"uses_ai": True, "ai_role": "provider"})
+        assert result.status == "unknown"
+
+    def test_art22_met_when_not_a_provider(self):
+        result = self._ai_act_scorer(22, ai_act_data={"uses_ai": True, "ai_role": "deployer"})
+        assert result.status == "met"
+
+    def test_art22_not_influenced_by_gdpr_data_present(self):
+        """AI Act Art. 22 collides with GDPR's automated-decision branch — must use ai_role, not uses_ai alone."""
+        profile = make_profile(ai_act_data={"uses_ai": True, "ai_role": "deployer"})
+        rule = make_rule(article_number=22, check_type="profile_field")
+        scorer = Scorer(profile, [make_applicability_result(rule)], "EU_AI_ACT")
+        assert scorer.evaluate()[0].status == "met"
+
+    # Art. 26 — Deployer obligations
+    def test_art26_met_for_provider_only(self):
+        result = self._ai_act_scorer(26, ai_act_data={"uses_ai": True, "ai_role": "provider"})
+        assert result.status == "met"
+
+    def test_art26_unknown_for_deployer_with_high_risk(self):
+        result = self._ai_act_scorer(26, ai_act_data={
+            "uses_ai": True, "ai_role": "deployer", "high_risk_ai_categories": ["employment"],
+        })
+        assert result.status == "unknown"
+
+    # Art. 51 — GPAI systemic risk
+    def test_art51_met_without_gpai(self):
+        result = self._ai_act_scorer(51, ai_act_data={"uses_ai": True, "uses_gpai": False})
+        assert result.status == "met"
+
+    def test_art51_unknown_with_gpai(self):
+        result = self._ai_act_scorer(51, ai_act_data={"uses_ai": True, "uses_gpai": True})
+        assert result.status == "unknown"
+
 
 class TestScorerNIS2Rules:
     """Tests for NIS2-specific scoring logic."""
@@ -868,11 +1040,11 @@ class TestScorerNIS2Rules:
     def _nis2_scorer(self, article_num, nis2_data=None):
         rule = make_rule(article_number=article_num, check_type="profile_field")
         profile = make_profile(nis2_data=nis2_data or {
-            "nis2_sectors": ["energy"],
+            "sectors": ["energy"],
             "entity_type": "essential",
-            "has_incident_plan": True,
+            "has_incident_response_plan": True,
         })
-        scorer = Scorer(profile, [make_applicability_result(rule)])
+        scorer = Scorer(profile, [make_applicability_result(rule)], "NIS2")
         results = scorer.evaluate()
         return results[0] if results else None
 
@@ -880,7 +1052,7 @@ class TestScorerNIS2Rules:
         assert self._nis2_scorer(2).status == "met"
 
     def test_nis2_art2_partial_without_entity_type(self):
-        result = self._nis2_scorer(2, nis2_data={"nis2_sectors": ["energy"], "entity_type": ""})
+        result = self._nis2_scorer(2, nis2_data={"sectors": ["energy"], "entity_type": ""})
         assert result.status == "partial"
 
     def test_nis2_art18_met_with_incident_plan(self):
@@ -888,52 +1060,69 @@ class TestScorerNIS2Rules:
 
     def test_nis2_art18_not_met_without_incident_plan(self):
         result = self._nis2_scorer(18, nis2_data={
-            "nis2_sectors": ["energy"], "entity_type": "essential", "has_incident_plan": False
+            "sectors": ["energy"], "entity_type": "essential", "has_incident_response_plan": False
         })
         assert result.status == "not_met"
 
     def test_nis2_art23_unknown_when_incident_plan_none(self):
         result = self._nis2_scorer(23, nis2_data={
-            "nis2_sectors": ["energy"], "entity_type": "essential", "has_incident_plan": None
+            "sectors": ["energy"], "entity_type": "essential", "has_incident_response_plan": None
         })
         assert result.status == "unknown"
+
+    def test_nis2_art3_met_with_sectors_and_entity_type(self):
+        assert self._nis2_scorer(3).status == "met"
+
+    def test_nis2_art27_unknown(self):
+        assert self._nis2_scorer(27).status == "unknown"
+
+    def test_nis2_art3_not_influenced_by_gdpr_jurisdiction(self):
+        """NIS2 Art. 3 collides with GDPR's territorial-scope branch — must use sectors/entity_type, not jurisdiction."""
+        rule = make_rule(article_number=3, check_type="profile_field")
+        profile = make_profile(
+            primary_jurisdiction="",
+            nis2_data={"sectors": ["energy"], "entity_type": "essential"},
+        )
+        scorer = Scorer(profile, [make_applicability_result(rule)], "NIS2")
+        assert scorer.evaluate()[0].status == "met"
 
 
 class TestScorerOverallScore:
     """Tests for the overall score calculation."""
 
     def test_empty_results_gives_score_zero(self):
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score([])
         assert summary["score"] == 0
         assert summary["total_rules"] == 0
 
     def test_all_met_gives_score_100(self):
         results = [make_scoring_result(make_rule(severity=Severity.HIGH), "met")]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["score"] == 100
         assert summary["risk_level"] == "low"
 
     def test_all_not_met_gives_score_zero(self):
         results = [make_scoring_result(make_rule(severity=Severity.HIGH), "not_met")]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["score"] == 0
         assert summary["risk_level"] == "critical"
 
-    def test_all_unknown_gives_score_zero(self):
-        """All unknown rules → score is 0 (no weight to calculate from)."""
+    def test_all_unknown_gives_score_none(self):
+        """All unknown rules → insufficient_data, score is None (can't calculate from zero weight)."""
         results = [make_scoring_result(make_rule(severity=Severity.HIGH), "unknown")]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
-        assert summary["score"] == 0
+        assert summary["score"] is None
+        assert summary.get("insufficient_data") is True
         assert summary["unknown_rules"] == 1
 
     def test_partial_rule_gives_50_percent(self):
         """Single partial rule → score is 50."""
         results = [make_scoring_result(make_rule(severity=Severity.MEDIUM), "partial")]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["score"] == 50
 
@@ -941,7 +1130,7 @@ class TestScorerOverallScore:
         """Unknown rules don't affect the score denominator."""
         met_rule = make_scoring_result(make_rule(severity=Severity.HIGH), "met")
         unknown_rule = make_scoring_result(make_rule(severity=Severity.CRITICAL), "unknown")
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score([met_rule, unknown_rule])
         # Score is based only on met_rule (weight=3), unknown excluded
         assert summary["score"] == 100
@@ -951,7 +1140,7 @@ class TestScorerOverallScore:
         """Critical rules (weight=4) have more impact than low rules (weight=1)."""
         critical_met = make_scoring_result(make_rule(severity=Severity.CRITICAL), "met")
         low_not_met = make_scoring_result(make_rule(severity=Severity.LOW), "not_met")
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score([critical_met, low_not_met])
         # earned=4, total=5, score=80
         assert summary["score"] == 80
@@ -960,7 +1149,7 @@ class TestScorerOverallScore:
     def test_risk_level_critical_below_40(self):
         """Risk level is critical when score < 40."""
         results = [make_scoring_result(make_rule(severity=Severity.CRITICAL), "not_met")]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["risk_level"] == "critical"
         assert summary["score"] == 0
@@ -975,7 +1164,7 @@ class TestScorerOverallScore:
             make_scoring_result(make_rule(severity=Severity.MEDIUM), "not_met"),
             make_scoring_result(make_rule(severity=Severity.MEDIUM), "not_met"),
         ]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["score"] == 40
         assert summary["risk_level"] == "high"
@@ -989,7 +1178,7 @@ class TestScorerOverallScore:
             make_scoring_result(make_rule(severity=Severity.MEDIUM), "not_met"),
             make_scoring_result(make_rule(severity=Severity.MEDIUM), "not_met"),
         ]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["score"] == 60
         assert summary["risk_level"] == "medium"
@@ -1003,7 +1192,7 @@ class TestScorerOverallScore:
             make_scoring_result(make_rule(severity=Severity.MEDIUM), "met"),
             make_scoring_result(make_rule(severity=Severity.MEDIUM), "not_met"),
         ]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["score"] == 80
         assert summary["risk_level"] == "low"
@@ -1017,7 +1206,7 @@ class TestScorerOverallScore:
             make_scoring_result(make_rule(), "not_met"),
             make_scoring_result(make_rule(), "unknown"),
         ]
-        scorer = Scorer(make_profile(), [])
+        scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["met_rules"] == 2
         assert summary["partial_rules"] == 1
@@ -1028,7 +1217,7 @@ class TestScorerOverallScore:
     def test_remediation_priority_none_for_met_rules(self):
         """Met rules have no remediation priority."""
         rule = make_rule(check_type="profile_field", article_number=33)
-        scorer = Scorer(make_profile(), [make_applicability_result(rule)])
+        scorer = Scorer(make_profile(), [make_applicability_result(rule)], "GDPR")
         results = scorer.evaluate()
         assert results[0].remediation_priority is None
 
@@ -1041,7 +1230,7 @@ class TestScorerOverallScore:
             (Severity.LOW, "low"),
         ]:
             rule = make_rule(check_type="policy_required", severity=severity)
-            scorer = Scorer(make_profile(), [make_applicability_result(rule)])
+            scorer = Scorer(make_profile(), [make_applicability_result(rule)], "GDPR")
             result = scorer.evaluate()[0]
             assert result.remediation_priority == expected_priority
 

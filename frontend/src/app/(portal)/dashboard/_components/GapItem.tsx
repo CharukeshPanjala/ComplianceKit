@@ -98,7 +98,7 @@ export const GapItem = ({ gap, onClick }: GapItemProps) => {
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onClick()}
-      aria-label={`${gap.article} — ${status.label}`}
+      aria-label={`${gap.article}: ${status.label}`}
     >
       {renderLeft()}
       {renderBody()}

@@ -7,13 +7,13 @@ import { VendorEditModal } from "./VendorEditModal";
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = {
-  wrapper: "overflow-x-auto rounded-xl border border-gray-100 shadow-sm",
+  wrapper: "overflow-x-auto rounded-xl border border-[#E2E8F0] shadow-sm",
   table: "w-full text-sm",
-  thead: "bg-gray-50 border-b border-gray-100",
-  th: "px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap",
-  tr: "border-b border-gray-50 hover:bg-gray-50/50 transition-colors",
-  td: "px-4 py-3 text-sm text-gray-700",
-  name: "font-medium text-gray-900",
+  thead: "bg-[#F8FAFC] border-b border-[#E2E8F0]",
+  th: "px-4 py-3 text-left text-xs font-semibold text-[#64748B] uppercase tracking-wide whitespace-nowrap",
+  tr: "border-b border-[#E2E8F0] even:bg-[#F8FAFC] hover:bg-gray-50/50 transition-colors",
+  td: "px-4 py-3 text-sm text-[#334155]",
+  name: "font-medium text-[#0F172A]",
   link: "text-blue-600 hover:underline",
   riskBadge: {
     base: "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
@@ -30,8 +30,8 @@ const styles = {
   },
   dpaYes: "inline-flex items-center gap-1 text-green-700 text-xs font-medium",
   dpaNo: "inline-flex items-center gap-1 text-red-600 text-xs font-medium",
-  editBtn: "px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors",
-  emptyRow: "py-16 text-center text-gray-400 text-sm",
+  editBtn: "px-3 py-1.5 text-xs font-medium text-[#334155] border border-[#E2E8F0] hover:bg-gray-50 rounded-lg transition-colors",
+  emptyRow: "py-16 text-center text-[#64748B] text-sm",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
   // ── Render helpers ────────────────────────────────────────────────────────
 
   const renderRiskBadge = (risk: string | null) => {
-    if (!risk) return <span className={`${styles.riskBadge.base} ${styles.riskBadge.unknown}`}>—</span>;
+    if (!risk) return <span className={`${styles.riskBadge.base} ${styles.riskBadge.unknown}`}>-</span>;
     const cls = risk === "high" ? styles.riskBadge.high : risk === "medium" ? styles.riskBadge.medium : styles.riskBadge.low;
     return <span className={`${styles.riskBadge.base} ${cls}`}>{risk.charAt(0).toUpperCase() + risk.slice(1)}</span>;
   };
@@ -95,7 +95,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
     );
 
   const renderTransfer = (mechanism: string | null) => {
-    if (!mechanism || mechanism === "none") return <span className="text-gray-400 text-xs">—</span>;
+    if (!mechanism || mechanism === "none") return <span className="text-gray-400 text-xs">-</span>;
     const labels: Record<string, string> = {
       scc: "SCC",
       bcr: "BCR",
@@ -115,7 +115,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
           </a>
         )}
       </td>
-      <td className={styles.td}>{p.category ?? "—"}</td>
+      <td className={styles.td}>{p.category ?? "-"}</td>
       <td className={styles.td}>{renderRiskBadge(p.risk_level)}</td>
       <td className={styles.td}>{renderDpa(p.dpa_signed)}</td>
       <td className={styles.td}>{renderTransfer(p.transfer_mechanism)}</td>
@@ -127,7 +127,11 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
           </button>
           <button
             className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
-            onClick={() => onDelete(p.processor_id)}
+            onClick={() => {
+              if (window.confirm(`Remove ${p.name} from your vendor register?`)) {
+                onDelete(p.processor_id);
+              }
+            }}
           >
             Remove
           </button>
@@ -157,7 +161,7 @@ export const VendorTable = ({ processors, onUpdate, onDelete }: Props) => {
             {processors.length === 0 ? (
               <tr>
                 <td colSpan={7} className={styles.emptyRow}>
-                  No vendors yet — generate from your tech stack to get started.
+                  No vendors yet. Generate from your tech stack to get started.
                 </td>
               </tr>
             ) : (

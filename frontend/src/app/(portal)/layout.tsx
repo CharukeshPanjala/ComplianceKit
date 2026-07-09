@@ -13,7 +13,7 @@ export default async function PortalLayout({ children }: { children: React.React
       isComplete = profile.is_complete === true;
     }
   } catch {
-    // API unreachable — let them through, don't block portal
+    isComplete = true; // API unreachable — let them through, don't block portal
   }
 
   if (!isComplete) {

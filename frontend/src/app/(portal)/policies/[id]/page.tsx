@@ -150,7 +150,7 @@ export default function PolicyDetailPage() {
           {policy.versions.map((v) => (
             <div key={v.version_id} className={styles.versionRow}>
               <span className={styles.versionNum}>v{v.version_number}</span>
-              <span>{v.change_type ? CHANGE_TYPE_LABEL[v.change_type] ?? v.change_type : "—"}</span>
+              <span>{v.change_type ? CHANGE_TYPE_LABEL[v.change_type] ?? v.change_type : "-"}</span>
               <span>{new Date(v.created_at).toLocaleDateString()}</span>
             </div>
           ))}

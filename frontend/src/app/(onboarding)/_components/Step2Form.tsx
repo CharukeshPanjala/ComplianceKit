@@ -96,7 +96,7 @@ const PROCESSING_PURPOSE_OPTIONS = [
   { value: "marketing", label: "Marketing" },
   { value: "analytics", label: "Analytics" },
   { value: "legal_obligation", label: "Legal Obligation" },
-  { value: "legitimate_interest", label: "Legitimate Interest" },
+  { value: "legitimate_interests", label: "Legitimate Interest" },
   { value: "contract_performance", label: "Contract Performance" },
   { value: "other", label: "Other" },
 ];
@@ -116,6 +116,10 @@ const styles = {
   labelRow: "flex items-center gap-1.5 mb-2",
   warning: "text-xs text-amber-600 mt-2",
   nav: "flex justify-between mt-8",
+  fieldLabel: "text-sm font-medium text-gray-700",
+  asterisk: "text-red-500",
+  fieldError: "text-xs text-red-600 mt-1",
+  error: "mt-4 text-sm text-red-600",
 };
 
 // ── Props ─────────────────────────────────────────────────
@@ -261,10 +265,10 @@ export default function Step2Form({ initialData }: Props) {
   const renderDataCategories = () => (
     <div>
       <div className={styles.labelRow}>
-        <span className="text-sm font-medium text-gray-700">
-          Data categories processed <span className="text-red-500">*</span>
+        <span className={styles.fieldLabel}>
+          Data categories processed <span className={styles.asterisk}>*</span>
         </span>
-        <Tooltip text="⚠️ marked categories are special category data under GDPR Art. 9 — stricter rules apply." />
+        <Tooltip text="⚠️ marked categories are special category data under GDPR Art. 9. Stricter rules apply." />
       </div>
       <div className={styles.grid}>
         {DATA_CATEGORY_OPTIONS.map((opt) => (
@@ -284,19 +288,19 @@ export default function Step2Form({ initialData }: Props) {
       />
       {hasSpecialCategory && (
         <p className={styles.warning}>
-          ⚠️ Special category data detected — stricter obligations apply under GDPR Art. 9
+          ⚠️ Special category data detected. Stricter obligations apply under GDPR Art. 9
         </p>
       )}
       {errors.data_categories_processed && (
-        <p className="text-xs text-red-600 mt-1">{errors.data_categories_processed.message}</p>
+        <p className={styles.fieldError}>{errors.data_categories_processed.message}</p>
       )}
     </div>
   );
 
   const renderSubjectCategories = () => (
     <div>
-      <p className="text-sm font-medium text-gray-700 mb-2">
-        Data subject categories <span className="text-red-500">*</span>
+      <p className={`${styles.fieldLabel} mb-2`}>
+        Data subject categories <span className={styles.asterisk}>*</span>
       </p>
       <div className={styles.grid}>
         {DATA_SUBJECT_OPTIONS.map((opt) => (
@@ -317,7 +321,7 @@ export default function Step2Form({ initialData }: Props) {
         placeholder="e.g. Partners, Contractors..."
       />
       {errors.data_subject_categories && (
-        <p className="text-xs text-red-600 mt-1">{errors.data_subject_categories.message}</p>
+        <p className={styles.fieldError}>{errors.data_subject_categories.message}</p>
       )}
     </div>
   );
@@ -325,8 +329,8 @@ export default function Step2Form({ initialData }: Props) {
   const renderProcessingPurposes = () => (
     <div>
       <div className={styles.labelRow}>
-        <span className="text-sm font-medium text-gray-700">
-          Processing purposes <span className="text-red-500">*</span>
+        <span className={styles.fieldLabel}>
+          Processing purposes <span className={styles.asterisk}>*</span>
         </span>
         <Tooltip text="Legal Obligation means processing is required by law (e.g. tax records). Legitimate Interest requires a balancing test under GDPR Art. 6(1)(f)." />
       </div>
@@ -347,7 +351,7 @@ export default function Step2Form({ initialData }: Props) {
         placeholder="e.g. Fraud Prevention, Research..."
       />
       {errors.processing_purposes && (
-        <p className="text-xs text-red-600 mt-1">{errors.processing_purposes.message}</p>
+        <p className={styles.fieldError}>{errors.processing_purposes.message}</p>
       )}
     </div>
   );
@@ -443,7 +447,7 @@ export default function Step2Form({ initialData }: Props) {
         {renderSubjectCategories()}
         {renderProcessingPurposes()}
       </div>
-      {serverError && <p className="mt-4 text-sm text-red-600">{serverError}</p>}
+      {serverError && <p className={styles.error}>{serverError}</p>}
       {renderNavigation()}
     </form>
   );

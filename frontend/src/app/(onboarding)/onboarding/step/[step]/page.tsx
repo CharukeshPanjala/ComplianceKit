@@ -17,8 +17,8 @@ const STEP_SUBTITLES: Record<number, string> = {
   2: "Where do you operate and what data do you process?",
   3: "What tools and technologies do you use?",
   4: "How is your infrastructure set up?",
-  5: "Almost done — compliance contacts",
-  6: "Final details — regulations, AI & cybersecurity",
+  5: "Compliance contacts",
+  6: "Regulations, AI & cybersecurity",
 };
 
 const styles = {

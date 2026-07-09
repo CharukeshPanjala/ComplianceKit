@@ -44,6 +44,9 @@ class ApplicabilityEngine:
     # NIS2 company size threshold — micro/small are exempt
     NIS2_EXEMPT_SIZES = {"1-10", "11-50"}
 
+    # NIS2 Art. 2(2) — these sectors apply regardless of company size
+    NIS2_SIZE_INDEPENDENT_SECTORS = {"digital_infrastructure", "public_administration"}
+
     # NIS2 sectors that require domain name database (Art. 28)
     DNS_SECTORS = {"dns_services", "tld_registries", "domain_registration"}
 
@@ -174,16 +177,20 @@ class ApplicabilityEngine:
         if not self.nis2:
             return False, "nis2_onboarding_incomplete"
 
-        sectors = set(self.nis2.get("nis2_sectors") or [])
+        sectors = set(self.nis2.get("sectors") or [])
         entity_type = self.nis2.get("entity_type") or ""
         n = rule.article_number
 
         # Not in any NIS2 covered sector
-        if not sectors:
+        if not sectors or sectors == {"not_applicable"}:
             return False, "not_in_nis2_covered_sector"
 
-        # Micro/small companies are NIS2 exempt
-        if self.company_size in self.NIS2_EXEMPT_SIZES:
+        # Micro/small companies are NIS2 exempt, unless they're in a sector
+        # that's in scope regardless of size (Art. 2(2))
+        if (
+            self.company_size in self.NIS2_EXEMPT_SIZES
+            and not sectors.intersection(self.NIS2_SIZE_INDEPENDENT_SECTORS)
+        ):
             return False, "company_size_exempt_from_nis2"
 
         # Essential entity-specific proactive supervision
@@ -208,9 +215,9 @@ class ApplicabilityEngine:
             return False, "ai_act_onboarding_incomplete"
 
         uses_ai = self.ai.get("uses_ai", False)
-        role = self.ai.get("role") or ""
-        high_risk = self.ai.get("high_risk_categories") or []
-        gpai = self.ai.get("gpai_model", False)
+        role = self.ai.get("ai_role") or ""
+        high_risk = self.ai.get("high_risk_ai_categories") or []
+        gpai = self.ai.get("uses_gpai", False)
         n = rule.article_number
 
         # AI Act only applies if company uses AI

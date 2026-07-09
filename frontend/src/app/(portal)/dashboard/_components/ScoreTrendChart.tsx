@@ -7,42 +7,13 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts";
 import { useAssessmentHistory } from "@/lib/hooks/useAssessmentHistory";
 import type { RegulationName } from "@/types/assessment";
 
-// ── Types ─────────────────────────────────────────────────
-
-interface ScoreTrendChartProps {
-  regulation: RegulationName;
-}
-
-interface ChartPoint {
-  date: string;
-  score: number;
-  risk: string;
-}
-
-// ── Styles ────────────────────────────────────────────────
-
-const styles = {
-  wrapper: "bg-white rounded-2xl border border-gray-100 shadow-sm p-6",
-  header: "flex items-center justify-between mb-6",
-  title: "text-sm font-semibold text-gray-900",
-  regulation: "text-xs text-gray-400 font-medium px-2 py-1 bg-gray-100 rounded-full",
-  chartWrapper: "h-48",
-  emptyWrapper: "h-48 flex flex-col items-center justify-center text-center",
-  emptyIcon: "w-10 h-10 text-gray-200 mb-2",
-  emptyText: "text-sm text-gray-400",
-  emptySubtext: "text-xs text-gray-300 mt-1",
-  loadingWrapper: "h-48 flex items-center justify-center",
-  loadingBar: "w-full h-2 bg-gray-100 rounded-full overflow-hidden",
-  loadingPulse: "h-full w-1/2 bg-gray-200 animate-pulse rounded-full",
-  tooltipWrapper: "bg-white border border-gray-100 shadow-lg rounded-xl px-3 py-2",
-  tooltipDate: "text-xs text-gray-400 mb-1",
-  tooltipScore: "text-sm font-bold text-navy",
-};
+// ── Constants ─────────────────────────────────────────────
 
 const REG_LABELS: Record<RegulationName, string> = {
   GDPR: "GDPR",
@@ -50,23 +21,46 @@ const REG_LABELS: Record<RegulationName, string> = {
   EU_AI_ACT: "EU AI Act",
 };
 
-// ── Helpers ───────────────────────────────────────────────
+const REG_COLORS: Record<string, string> = {
+  GDPR: "#7C3AED",
+  NIS2: "#0891B2",
+  EU_AI_ACT: "#BE185D",
+};
 
-const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+// ── Styles ────────────────────────────────────────────────
 
-const buildChartData = (
-  history: { score: number; risk_level: string; completed_at: string }[]
-): ChartPoint[] =>
-  [...history].reverse().map((h) => ({
-    date: formatDate(h.completed_at),
-    score: h.score,
-    risk: h.risk_level,
-  }));
+const styles = {
+  wrapper: "bg-white rounded-2xl border border-gray-100 shadow-sm p-6",
+  header: "flex items-center justify-between mb-4",
+  title: "text-sm font-semibold text-gray-900",
+  regBadge:
+    "text-xs text-gray-400 font-medium px-2 py-1 bg-gray-100 rounded-full",
+  loadingWrapper: "h-[220px] flex items-center justify-center",
+  loadingBar: "w-full h-2 bg-gray-100 rounded-full overflow-hidden",
+  loadingPulse: "h-full w-1/2 bg-gray-200 animate-pulse rounded-full",
+  tooltipWrapper:
+    "bg-white border border-[#E2E8F0] shadow-lg rounded-xl px-3 py-2",
+  tooltipDate: "text-xs text-[#94A3B8] mb-1",
+  tooltipScore: "text-sm font-bold text-[#0F172A]",
+};
+
+// ── Types ──────────────────────────────────────────────────
+
+interface Props {
+  regulation?: RegulationName;
+}
 
 // ── Sub-components ────────────────────────────────────────
 
-const CustomTooltip = ({
+const LoadingState = () => (
+  <div className={styles.loadingWrapper}>
+    <div className={styles.loadingBar}>
+      <div className={styles.loadingPulse} />
+    </div>
+  </div>
+);
+
+const SingleTooltip = ({
   active,
   payload,
   label,
@@ -84,85 +78,138 @@ const CustomTooltip = ({
   );
 };
 
-const EmptyState = () => (
-  <div className={styles.emptyWrapper}>
-    <svg className={styles.emptyIcon} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1}
-        d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
-      />
-    </svg>
-    <p className={styles.emptyText}>No history yet</p>
-    <p className={styles.emptySubtext}>Run assessments to see your score trend</p>
-  </div>
-);
-
-const LoadingState = () => (
-  <div className={styles.loadingWrapper}>
-    <div className={styles.loadingBar}>
-      <div className={styles.loadingPulse} />
-    </div>
-  </div>
-);
-
 // ── Component ─────────────────────────────────────────────
 
-export const ScoreTrendChart = ({ regulation }: ScoreTrendChartProps) => {
-  const { data: history = [], isLoading } = useAssessmentHistory(regulation, 10);
-
-  const chartData = buildChartData(history);
-  const hasData = chartData.length > 1;
+export const ScoreTrendChart = ({ regulation }: Props) => {
+  const { data: allHistory = [], isLoading } = useAssessmentHistory(undefined, 30);
 
   // ── Render helpers ────────────────────────────────────
 
-  const renderHeader = () => (
-    <div className={styles.header}>
-      <h3 className={styles.title}>Score History</h3>
-      <span className={styles.regulation}>{REG_LABELS[regulation]}</span>
+  const renderEmptyState = () => (
+    <div className={styles.loadingWrapper}>
+      <p className="text-sm text-[#94A3B8]">Run more assessments to see your trend</p>
     </div>
   );
 
-  const renderChart = () => (
-    <div className={styles.chartWrapper}>
-      <ResponsiveContainer width="100%" height="100%">
+  const renderSingleLine = () => {
+    if (isLoading) return <LoadingState />;
+
+    const filtered = allHistory.filter((h) => h.regulation === regulation);
+    const chartData = [...filtered].reverse().map((h) => ({
+      date: new Date(h.completed_at).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      }),
+      score: h.score,
+    }));
+
+    if (chartData.length < 2) return renderEmptyState();
+
+    return (
+      <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11, fill: "#9ca3af" }}
+            tick={{ fontSize: 11, fill: "#94A3B8" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             domain={[0, 100]}
-            tick={{ fontSize: 11, fill: "#9ca3af" }}
+            tick={{ fontSize: 11, fill: "#94A3B8" }}
             axisLine={false}
             tickLine={false}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<SingleTooltip />} />
           <Line
             type="monotone"
             dataKey="score"
-            stroke="#1e3a5f"
+            stroke="#D97706"
             strokeWidth={2.5}
-            dot={{ fill: "#1e3a5f", strokeWidth: 0, r: 4 }}
-            activeDot={{ r: 6, fill: "#f59e0b" }}
+            dot={false}
           />
         </LineChart>
       </ResponsiveContainer>
-    </div>
-  );
+    );
+  };
+
+  const renderMultiLine = () => {
+    if (isLoading) return <LoadingState />;
+
+    if (allHistory.length < 2) return renderEmptyState();
+
+    const sorted = [...allHistory].sort(
+      (a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
+    );
+
+    const running: Record<string, number | null> = { GDPR: null, NIS2: null, EU_AI_ACT: null };
+    const chartData = sorted.map((h) => {
+      running[h.regulation] = h.score;
+      return {
+        date: new Date(h.completed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+        GDPR: running.GDPR,
+        NIS2: running.NIS2,
+        EU_AI_ACT: running.EU_AI_ACT,
+      };
+    });
+
+    const regsPresent = (["GDPR", "NIS2", "EU_AI_ACT"] as const).filter(
+      (r) => allHistory.some((h) => h.regulation === r)
+    );
+
+    return (
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 11, fill: "#94A3B8" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            domain={[0, 100]}
+            tick={{ fontSize: 11, fill: "#94A3B8" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            contentStyle={{
+              borderRadius: "8px",
+              border: "1px solid #E2E8F0",
+              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.07)",
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }} />
+          {regsPresent.map((r) => (
+            <Line
+              key={r}
+              type="monotone"
+              dataKey={r}
+              name={REG_LABELS[r]}
+              stroke={REG_COLORS[r]}
+              strokeWidth={2}
+              dot={false}
+              connectNulls
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  };
 
   // ── Render ────────────────────────────────────────────
 
   return (
     <div className={styles.wrapper}>
-      {renderHeader()}
-      {isLoading && <LoadingState />}
-      {!isLoading && !hasData && <EmptyState />}
-      {!isLoading && hasData && renderChart()}
+      <div className={styles.header}>
+        <h3 className={styles.title}>Score Trend</h3>
+        {regulation && (
+          <span className={styles.regBadge}>{REG_LABELS[regulation]}</span>
+        )}
+      </div>
+      {regulation ? renderSingleLine() : renderMultiLine()}
     </div>
   );
 };

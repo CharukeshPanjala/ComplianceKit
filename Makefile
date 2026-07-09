@@ -91,7 +91,11 @@ db:
 	docker exec -it compliancekit-postgres psql -U postgres -d compliancekit
 
 # ── Tests ─────────────────────────────────────────────────
+lint-fields:
+	uv run python packages/common/scripts/lint_profile_fields.py
+
 test:
+	uv run python packages/common/scripts/lint_profile_fields.py
 	uv run pytest packages/common/tests/ -v
 	uv run pytest services/api-gateway/tests/ -v
 	uv run pytest services/policy-engine/tests/ -v
