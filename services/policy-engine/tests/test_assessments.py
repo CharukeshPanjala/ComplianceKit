@@ -395,15 +395,33 @@ class TestGetLatestAssessments:
     def test_returns_latest_per_regulation(self, client):
         """Returns latest completed assessment for each regulation."""
         test_client, mock_session = client
-        assessment = make_mock_assessment()
+
+        gdpr_id = uuid.uuid4()
+        nis2_id = uuid.uuid4()
+        ai_id = uuid.uuid4()
+
+        reg_gdpr = make_mock_regulation("GDPR", reg_id=gdpr_id)
+        reg_nis2 = make_mock_regulation("NIS2", reg_id=nis2_id)
+        reg_ai = make_mock_regulation("EU_AI_ACT", reg_id=ai_id)
+
+        asm_gdpr = make_mock_assessment(regulation_id=gdpr_id)
+        asm_nis2 = make_mock_assessment(regulation_id=nis2_id, assessment_id="asm_nis2")
+        asm_ai = make_mock_assessment(regulation_id=ai_id, assessment_id="asm_ai")
+
+        profile = make_mock_profile()
+
         call_count = 0
 
         async def side_effect(stmt):
             nonlocal call_count
             call_count += 1
-            if call_count % 2 == 1:  # regulation lookup
-                return scalar_result(make_mock_regulation())
-            return scalar_result(assessment)  # assessment lookup
+            if call_count == 1:  # profile
+                return scalar_result(profile)
+            if call_count == 2:  # batch regulations
+                return scalars_result([reg_gdpr, reg_nis2, reg_ai])
+            if call_count == 3:  # batch assessments
+                return scalars_result([asm_gdpr, asm_nis2, asm_ai])
+            return scalars_result([])
 
         mock_session.execute = side_effect
 
@@ -414,24 +432,42 @@ class TestGetLatestAssessments:
         assert len(data["assessments"]) == 3  # GDPR, NIS2, EU_AI_ACT
 
     def test_never_run_shows_null_score(self, client):
-        """Regulation never assessed → score is null."""
+        """Regulation never assessed → score is null, status is never_run."""
         test_client, mock_session = client
+
+        gdpr_id = uuid.uuid4()
+        nis2_id = uuid.uuid4()
+        ai_id = uuid.uuid4()
+
+        reg_gdpr = make_mock_regulation("GDPR", reg_id=gdpr_id)
+        reg_nis2 = make_mock_regulation("NIS2", reg_id=nis2_id)
+        reg_ai = make_mock_regulation("EU_AI_ACT", reg_id=ai_id)
+
+        # Profile must make all 3 regs applicable so status is never_run not not_applicable
+        profile = make_mock_profile()
+        profile.nis2_data = {"sectors": ["energy"]}
+        profile.ai_act_data = {"uses_ai": True, "ai_role": "deployer"}
+        # company_size must be a mock with .value since _applicability calls .value on it
+        profile.company_size = MagicMock(value="51-200")
+
         call_count = 0
 
         async def side_effect(stmt):
             nonlocal call_count
             call_count += 1
-            if call_count % 2 == 1:
-                return scalar_result(make_mock_regulation())
-            return scalar_result(None)  # no assessment
+            if call_count == 1:  # profile
+                return scalar_result(profile)
+            if call_count == 2:  # batch regulations
+                return scalars_result([reg_gdpr, reg_nis2, reg_ai])
+            return scalars_result([])  # no assessments for any regulation
 
         mock_session.execute = side_effect
 
         response = test_client.get("/api/v1/assessments/latest")
         data = response.json()
-        for assessment in data["assessments"]:
-            assert assessment["score"] is None
-            assert assessment["status"] == "never_run"
+        for item in data["assessments"]:
+            assert item["score"] is None
+            assert item["status"] == "never_run"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

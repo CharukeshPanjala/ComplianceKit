@@ -249,44 +249,62 @@ async def get_latest_assessments(
             return True, None
         return True, None
 
-    for reg_name in regulations:
-        reg_result = await session.execute(
-            select(Regulation).where(Regulation.name == reg_name)
-        )
-        regulation = reg_result.scalar_one_or_none()
-        if not regulation:
-            continue
+    # Batch 1: load all regulation rows in one query
+    reg_result = await session.execute(
+        select(Regulation).where(Regulation.name.in_(regulations))
+    )
+    reg_map: dict[str, Regulation] = {r.name: r for r in reg_result.scalars().all()}
 
-        assessment_result = await session.execute(
+    # Batch 2: latest assessment per regulation in one query (sorted desc, group in Python)
+    reg_ids = [r.id for r in reg_map.values()]
+    asm_result = await session.execute(
+        select(Assessment)
+        .where(
+            Assessment.tenant_id == claims.tenant_id,
+            Assessment.regulation_id.in_(reg_ids),
+        )
+        .order_by(desc(Assessment.created_at))
+    )
+    latest_map: dict = {}
+    for asm in asm_result.scalars().all():
+        if asm.regulation_id not in latest_map:
+            latest_map[asm.regulation_id] = asm
+
+    # Batch 3 (conditional): last-completed score for any pending/running/failed
+    need_prev = [
+        reg_id
+        for reg_id, asm in latest_map.items()
+        if asm.status in ("pending", "running", "failed")
+    ]
+    prev_map: dict = {}
+    if need_prev:
+        prev_result = await session.execute(
             select(Assessment)
             .where(
                 Assessment.tenant_id == claims.tenant_id,
-                Assessment.regulation_id == regulation.id,
+                Assessment.regulation_id.in_(need_prev),
+                Assessment.status == AssessmentStatus.COMPLETED,
             )
-            .order_by(desc(Assessment.created_at))
-            .limit(1)
+            .order_by(desc(Assessment.completed_at))
         )
-        assessment = assessment_result.scalar_one_or_none()
+        for asm in prev_result.scalars().all():
+            if asm.regulation_id not in prev_map:
+                prev_map[asm.regulation_id] = asm
 
-        # When latest is pending/running/failed, also fetch last completed score
-        # so the UI can show the previous score while recalculating
+    for reg_name in regulations:
+        regulation = reg_map.get(reg_name)
+        if not regulation:
+            continue
+
+        assessment = latest_map.get(regulation.id)
+
         last_score = None
         last_risk_level = None
         last_met = None
         last_not_met = None
         last_unknown = None
         if assessment and assessment.status in ("pending", "running", "failed"):
-            prev_result = await session.execute(
-                select(Assessment)
-                .where(
-                    Assessment.tenant_id == claims.tenant_id,
-                    Assessment.regulation_id == regulation.id,
-                    Assessment.status == AssessmentStatus.COMPLETED,
-                )
-                .order_by(desc(Assessment.completed_at))
-                .limit(1)
-            )
-            prev = prev_result.scalar_one_or_none()
+            prev = prev_map.get(regulation.id)
             if prev:
                 last_score = prev.score
                 last_risk_level = prev.risk_level
