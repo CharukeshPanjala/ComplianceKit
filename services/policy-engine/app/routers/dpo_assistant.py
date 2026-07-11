@@ -1,7 +1,7 @@
 import io
 import json
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from common.models.rule import Rule
 
 from app.config import settings
 from app.engine.embeddings import search_rules
+from app.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/dpo-assistant", tags=["dpo-assistant"])
 
@@ -81,7 +82,9 @@ def _stub_contract_analysis() -> dict:
 # ── POST /api/v1/dpo-assistant/chat ──────────────────────────────────────────
 
 @router.post("/chat")
+@limiter.limit("30/minute")
 async def chat(
+    request: Request,
     body: ChatRequest,
     claims: TokenClaims = Depends(verify_token),
     session: AsyncSession = Depends(get_admin_session),
@@ -153,7 +156,9 @@ async def chat(
 # ── POST /api/v1/dpo-assistant/analyse-contract ───────────────────────────────
 
 @router.post("/analyse-contract")
+@limiter.limit("30/minute")
 async def analyse_contract(
+    request: Request,
     file: UploadFile = File(...),
     claims: TokenClaims = Depends(verify_token),
 ):

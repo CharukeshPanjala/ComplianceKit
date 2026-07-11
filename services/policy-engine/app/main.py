@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from common.middleware.security_headers import SecurityHeadersMiddleware
+from app.limiter import limiter
 from app.routers.regulations import router as regulations_router
 from app.routers.assessments import router as assessments_router
 from app.routers.ropa import router as ropa_router
@@ -13,6 +17,9 @@ from app.config import settings
 
 app = FastAPI(title="Policy Engine", version="0.1.0")
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -20,6 +27,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(regulations_router)
 app.include_router(assessments_router)

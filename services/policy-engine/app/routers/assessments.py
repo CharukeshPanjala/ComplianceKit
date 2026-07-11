@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ from common.models.assessment import Assessment, Gap, AssessmentStatus
 from common.models.regulation import Regulation
 from common.models.company_profile import CompanyProfile
 from app.config import settings
+from app.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 
@@ -49,7 +50,9 @@ class UpdateGapRequest(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("", status_code=202)
+@limiter.limit("30/minute")
 async def run_assessment(
+    request: Request,
     body: RunAssessmentRequest,
     claims: TokenClaims = Depends(verify_token),
     session: AsyncSession = Depends(get_admin_session),
