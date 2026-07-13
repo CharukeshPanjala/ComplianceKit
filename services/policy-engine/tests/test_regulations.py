@@ -3,7 +3,14 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 from app.main import app
+from common.auth.clerk import verify_token, TokenClaims
 from common.db.session import get_admin_session
+
+FAKE_CLAIMS = TokenClaims(
+    user_id="user_test123",
+    tenant_id="ten_test456",
+    org_role="org:admin",
+)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -51,7 +58,11 @@ def client():
     async def override():
         yield mock_session
 
+    async def override_token():
+        return FAKE_CLAIMS
+
     app.dependency_overrides[get_admin_session] = override
+    app.dependency_overrides[verify_token] = override_token
     yield TestClient(app), mock_session
     app.dependency_overrides.clear()
 

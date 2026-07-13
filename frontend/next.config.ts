@@ -5,12 +5,42 @@ import path from "path";
 const nextConfig: NextConfig = {
   typedRoutes: true,
   output: "standalone",
+  images: {
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200],
+  },
   async redirects() {
     return [
       {
         source: "/",
         destination: "/sign-in",
         permanent: false,
+      },
+    ];
+  },
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "geolocation=(), microphone=(), camera=()" },
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://clerk.charukeshpanjala.com https://*.clerk.accounts.dev",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' blob: data: https:",
+              "font-src 'self'",
+              "connect-src 'self' https://*.clerk.accounts.dev https://clerk.charukeshpanjala.com",
+              "frame-ancestors 'none'",
+            ].join("; "),
+          },
+        ],
       },
     ];
   },

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
 import { GapList } from "./GapList";
-import { GapDetailModal } from "./GapDetailModal";
-import { ScoreTrendChart } from "./ScoreTrendChart";
 import { DeadlinesWidget } from "./DeadlinesWidget";
 import { QuickWinsWidget } from "./QuickWinsWidget";
 import { RemediationRoadmap } from "./RemediationRoadmap";
@@ -12,10 +11,13 @@ import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { ExecutiveSummaryBar } from "./ExecutiveSummaryBar";
 import { CriticalAlertsPanel } from "./CriticalAlertsPanel";
 import { RegulationHealthCards } from "./RegulationHealthCards";
-import { GapChartsRow } from "./GapChartsRow";
-import { RiskExposurePanel } from "./RiskExposurePanel";
 import { ComplianceMiniWidgets } from "./ComplianceMiniWidgets";
 import { RecentActivityFeed } from "./RecentActivityFeed";
+
+const GapDetailModal = dynamic(() => import("./GapDetailModal").then(m => ({ default: m.GapDetailModal })), { ssr: false });
+const ScoreTrendChart = dynamic(() => import("./ScoreTrendChart").then(m => ({ default: m.ScoreTrendChart })), { ssr: false });
+const GapChartsRow = dynamic(() => import("./GapChartsRow").then(m => ({ default: m.GapChartsRow })), { ssr: false });
+const RiskExposurePanel = dynamic(() => import("./RiskExposurePanel").then(m => ({ default: m.RiskExposurePanel })), { ssr: false });
 import { useGaps } from "@/lib/hooks/useGaps";
 import { useAssessmentStats } from "@/lib/hooks/useAssessmentStats";
 import { useTriggerAssessment } from "@/lib/hooks/useTriggerAssessment";

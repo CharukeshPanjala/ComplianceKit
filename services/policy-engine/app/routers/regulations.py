@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from common.auth.clerk import verify_token, TokenClaims
 from common.models.regulation import Regulation
 from common.models.rule import Rule
 from common.db.session import get_admin_session
@@ -9,7 +10,10 @@ router = APIRouter(prefix="/api/v1/regulations", tags=["regulations"])
 
 
 @router.get("")
-async def list_regulations(session: AsyncSession = Depends(get_admin_session)):
+async def list_regulations(
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
     result = await session.execute(select(Regulation).order_by(Regulation.name))
     regulations = result.scalars().all()
     return [
@@ -33,6 +37,7 @@ async def list_rules(
     category: str | None = Query(None),
     severity: str | None = Query(None),
     check_type: str | None = Query(None),
+    claims: TokenClaims = Depends(verify_token),
     session: AsyncSession = Depends(get_admin_session),
 ):
     reg_result = await session.execute(

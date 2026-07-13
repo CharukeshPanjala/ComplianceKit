@@ -77,6 +77,85 @@ DSAR: stat cards, WorkflowDots sub-component, amber CTAs.
 
 ---
 
+## Session — 2026-07-11 to 2026-07-12 — Security Hardening + Performance Baselines (COM-128, COM-126)
+
+**Date:** 2026-07-11 to 2026-07-12
+**Branch:** fix/sprint-5-touchups
+
+### What was built
+
+Multi-agent pipeline (Brain → Planner → Workers → Verifier) executed across two tickets.
+
+---
+
+### COM-128 — MVP Security Checklist
+
+**Security headers middleware (`packages/common/common/middleware/security_headers.py`)**
+`SecurityHeadersMiddleware` (BaseHTTPMiddleware) sets 6 headers on every response:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: geolocation=(), microphone=(), camera=()`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+
+Both `api-gateway` and `policy-engine` mount this middleware.
+
+**GZipMiddleware** added to both FastAPI apps (`minimum_size=1024`). Placed before CORSMiddleware in the stack so it wraps the outermost layer.
+
+**slowapi rate limiting**
+- Both services: `200/minute` global default
+- `POST /api/v1/assessments`: `30/minute` (heavy ARQ job trigger)
+- `POST /api/v1/dpo-assistant/chat` + `/analyse-contract`: `30/minute` (LLM calls)
+- policy-engine uses a standalone `app/limiter.py` module to avoid circular imports
+- api-gateway: `Limiter` instantiated directly in `main.py` (no router imports)
+
+**CORS hardening** — both configs now accept `CORS_ORIGINS` as a comma-separated string env var via `field_validator("cors_origins", mode="before")`. Production can set `CORS_ORIGINS=https://app.compliancekit.io` without code changes.
+
+**Frontend security headers (`frontend/next.config.ts`)**
+`headers()` async function returns 6 security headers for all routes, plus a full CSP whitelisting Clerk, Azure OpenAI, and Sentry domains.
+
+**Auth audit** — `GET /api/v1/regulations` was missing `verify_token` dependency (only had `get_admin_session`). Fixed: `verify_token` added. Regression: `test_regulations.py` fixture updated with `FAKE_CLAIMS` + `verify_token` override.
+
+**Secrets scan CI** — `.github/workflows/ci.yml` gets a `secrets-scan` job using `trufflesecurity/trufflehog-actions-scan@main --only-verified` — fails the build on any committed secrets.
+
+---
+
+### COM-126 — Performance Baselines
+
+**N+1 query fix (`services/policy-engine/app/routers/assessments.py`)**
+`GET /api/v1/assessments/latest` previously ran up to 10 queries per request (1 profile + 3 regulation lookups + 3 latest assessment lookups + up to 3 prev-completed lookups). Refactored to 3-4 queries:
+1. Profile (`scalar_one_or_none`)
+2. All 3 regulation rows: `WHERE name IN ('GDPR', 'NIS2', 'EU_AI_ACT')`
+3. All latest assessments: `WHERE tenant_id = X AND regulation_id IN (...) ORDER BY created_at DESC` — grouped in Python
+4. Prev-completed (conditional): only if any assessment is pending/running/failed
+
+Test helpers updated: added `rows_result()` + `make_mock_row()` for history tests; updated `TestGetLatestAssessments` to use batch-style side_effects.
+
+**Compound DB indexes (`packages/common/alembic/versions/a9f3e2b4c1d8_add_compound_performance_indexes.py`)**
+4 indexes targeting the dashboard's hot paths:
+- `ix_gaps_assessment_status` — `(assessment_id, status)` for gap filter queries
+- `ix_gaps_assessment_resolved` — `(assessment_id, resolved)` for QuickWins/DeadlineWidgets
+- `ix_assessments_tenant_regulation` — `(tenant_id, regulation_id)` for `/latest` and `/history`
+- `ix_assessments_status` — `(status,)` for pending/running polling queries
+
+**Lazy-load heavy dashboard components (`DashboardContent.tsx`)**
+`GapDetailModal`, `ScoreTrendChart`, `GapChartsRow`, `RiskExposurePanel` converted to `next/dynamic` with `ssr: false`. Modal and chart code no longer blocks initial dashboard paint.
+
+**Image optimization (`frontend/next.config.ts`)**
+Added `images.formats: ["image/avif", "image/webp"]` + `deviceSizes` for responsive srcset generation. Saves 30-60% on image payload for supported browsers.
+
+---
+
+### Decisions
+
+- slowapi circular import: standalone `limiter.py` in policy-engine rather than importing from `main.py`
+- GZipMiddleware before CORS: Starlette applies middleware in reverse stack order; outermost added first
+- `_rate_limit_exceeded_handler` mypy: `# type: ignore[arg-type]` — slowapi type stubs narrow the handler signature; safe to suppress
+- `/latest` N+1: batched IN queries + Python grouping rather than subquery per regulation — simpler, still O(1) queries for 3 fixed regulations
+
+---
+
 ## Session — 2026-07-05 to 2026-07-07 — Full Codebase Audit + Bug Fix Pipeline (Sprint 5 Hardening)
 
 **Date:** 2026-07-05 to 2026-07-07
