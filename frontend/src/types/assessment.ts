@@ -37,6 +37,7 @@ export interface LatestAssessment {
   status: AssessmentStatus | "never_run";
   not_applicable_reason?: string | null;
   insufficient_data?: boolean;
+  coverage_pct?: number;
 }
 
 export interface Gap {

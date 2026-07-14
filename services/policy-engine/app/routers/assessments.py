@@ -326,14 +326,16 @@ async def get_latest_assessments(
         if assessment and assessment.status == "completed" and not applicable:
             effective_status = "not_applicable"
 
-        unknown_count = assessment.unknown_rules or 0 if assessment else 0
         applicable_count = assessment.applicable_rules or 0 if assessment else 0
+        unknown_count = assessment.unknown_rules or 0 if assessment else 0
+        coverage_pct = (
+            round((1 - unknown_count / applicable_count) * 100)
+            if applicable_count > 0 else 0
+        )
         insufficient_data = (
             assessment is not None
             and assessment.status == "completed"
             and assessment.score is None
-            and applicable_count > 0
-            and unknown_count / applicable_count > 0.5
         )
 
         results.append({
@@ -350,6 +352,7 @@ async def get_latest_assessments(
             "status": effective_status,
             "not_applicable_reason": not_applicable_reason,
             "insufficient_data": insufficient_data,
+            "coverage_pct": coverage_pct,
         })
 
     return {"assessments": results}

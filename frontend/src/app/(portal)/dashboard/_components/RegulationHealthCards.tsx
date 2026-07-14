@@ -115,10 +115,10 @@ const InsufficientDataCard = ({
       <div className="flex flex-col items-center gap-2 py-2 text-center">
         <span className="text-2xl">📋</span>
         <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
-          Not enough data
+          No scoreable articles yet
         </p>
         <p className="text-xs text-amber-700 leading-relaxed px-1">
-          {unknownRules} of {totalRules} articles need documentation before a reliable score can be calculated.
+          {unknownRules} of {totalRules} articles require documentation uploads before a score can be calculated.
         </p>
       </div>
       <div className={styles.actions}>
@@ -212,6 +212,8 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
 
     const score = assessment.score ?? 0;
     const chip = getStatusChip(assessment.score);
+    const coveragePct = assessment.coverage_pct ?? 100;
+    const isPartial = assessment.score !== null && coveragePct < 80;
     const regGaps = gapsByRegulation[reg] ?? [];
     const openGaps = regGaps.filter(isOpen);
 
@@ -244,12 +246,22 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
           <div className="flex items-center gap-1.5">
             <span className={styles.regBadge} style={{ backgroundColor: cfg.color }}>{cfg.label}</span>
             <span className={`${styles.statusChip} ${chip.cls}`}>{chip.label}</span>
+            {isPartial && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-300 text-amber-700 bg-amber-50">
+                Partial
+              </span>
+            )}
           </div>
         </div>
 
         <div className={styles.gaugeRow}>
           <GaugeRing score={score} size={80} strokeWidth={7} />
         </div>
+        {isPartial && (
+          <p className="text-[11px] text-center text-amber-600">
+            Based on {coveragePct}% of articles
+          </p>
+        )}
 
         <div className={styles.statsRow}>
           {[
