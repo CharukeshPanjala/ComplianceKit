@@ -5,6 +5,43 @@ Updated every time a ticket is closed.
 
 ---
 
+## Session — 2026-07-14 — COM-212 Evidence Center Frontend
+
+**Date:** 2026-07-14
+**Branch:** feat/evidence-center-com-210
+
+### What was built
+
+`/portal/evidence` page with document checklist, upload modal, and evaluation results display.
+
+**types/evidence.ts:** `DocumentType`, `EvaluationStatus`, `ClauseStatus`, `OverallStatus`, `ClauseResult`, `EvaluationResults`, `EvidenceDocument` types. `DOCUMENT_TYPE_META` constant maps each doc type to its label, articles, and description.
+
+**evidenceApi.ts:** `uploadEvidence` (FormData POST), `listEvidence`, `getEvidenceByType` — all with try/catch and typed error extraction.
+
+**useEvidence.ts:** `useEvidenceList`, `useEvidenceByType`, `useUploadEvidence` mutation with `invalidateQueries` on success.
+
+**EvaluationResults.tsx:** Per-clause checklist with met/partial/not_met icons, article labels, notes, and summary badge. Imported type aliased to `EvaluationResultsData` to avoid name collision with the component.
+
+**UploadModal.tsx:** PDF-only file picker with client-side size/type validation, FormData upload, progress state, evaluation results shown inline on success.
+
+**DocumentChecklist.tsx:** 4 document cards (grid), status badges derived from `evaluation_results.overall_status`, article tags, upload/replace button per card. Loading and error states.
+
+**page.tsx + loading.tsx:** Client page shell + `PageSkeleton` for instant navigation.
+
+**Sidebar.tsx:** "Evidence" link added to COMPLIANCE section.
+
+### Decisions
+
+- `EvaluationResults` component aliased import from `@/types/evidence` to `EvaluationResultsData` (TS2395 would fire if both use the same name in the same file).
+- Page is a client component ("use client") for consistency with all other portal pages — server component would require separate auth token handling not established elsewhere.
+- "Replace document" shows on cards that already have an upload — users can re-upload to get a fresh evaluation.
+
+### Tests
+
+Typecheck and lint clean. 490 policy-engine + 31 api-gateway pass.
+
+---
+
 ## Session — 2026-07-14 — COM-211 Evidence Center Backend
 
 **Date:** 2026-07-14
