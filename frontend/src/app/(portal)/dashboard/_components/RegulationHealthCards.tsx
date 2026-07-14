@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { GaugeRing } from "@/components/ui/GaugeRing";
 import { useTriggerAssessment } from "@/lib/hooks/useTriggerAssessment";
 import type { LatestAssessment, Gap, RegulationName } from "@/types/assessment";
@@ -158,9 +159,30 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
     variables: triggeringReg,
   } = useTriggerAssessment();
 
+  const [localPending, setLocalPending] = useState<Set<RegulationName>>(new Set());
+
+  const clearPending = (reg: RegulationName) => {
+    setLocalPending((prev) => {
+      const next = new Set(prev);
+      next.delete(reg);
+      return next;
+    });
+  };
+
+  const handleTrigger = (reg: RegulationName) => {
+    setLocalPending((prev) => new Set([...prev, reg]));
+    triggerOne(reg, {
+      onSettled: () => setTimeout(() => clearPending(reg), 1500),
+    });
+  };
+
   const renderCard = (reg: RegulationName) => {
     const cfg = REG_CONFIG[reg];
     const assessment = assessments.find((a) => a.regulation === reg);
+
+    if (localPending.has(reg) || assessment?.status === "pending" || assessment?.status === "running") {
+      return <SkeletonCard key={reg} reg={reg} />;
+    }
 
     if (!assessment) {
       return (
@@ -172,7 +194,7 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
           <p className={styles.notRunText}>Not assessed yet</p>
           <div className={styles.actions}>
             <button
-              onClick={() => triggerOne(reg)}
+              onClick={() => handleTrigger(reg)}
               disabled={isTriggering && triggeringReg === reg}
               className={styles.reassessBtn}
             >
@@ -183,10 +205,6 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
       );
     }
 
-    if (assessment.status === "pending" || assessment.status === "running") {
-      return <SkeletonCard key={reg} reg={reg} />;
-    }
-
     if (assessment.insufficient_data) {
       return (
         <InsufficientDataCard
@@ -194,7 +212,7 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
           reg={reg}
           unknownRules={assessment.unknown_rules ?? 0}
           totalRules={(assessment.met_rules ?? 0) + (assessment.partial_rules ?? 0) + (assessment.not_met_rules ?? 0) + (assessment.unknown_rules ?? 0)}
-          onReassess={() => triggerOne(reg)}
+          onReassess={() => handleTrigger(reg)}
           isTriggering={isTriggering && triggeringReg === reg}
         />
       );
@@ -286,7 +304,7 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
             </button>
           )}
           <button
-            onClick={() => triggerOne(reg)}
+            onClick={() => handleTrigger(reg)}
             disabled={isTriggering && triggeringReg === reg}
             className={styles.reassessBtn}
           >
