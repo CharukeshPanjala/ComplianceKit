@@ -1,9 +1,10 @@
 // WHAT: /policies/[id] portal page | CHANGE: new file | WHY: COM-176 — policy viewer with status workflow, version history, PDF/DOCX downloads
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { usePolicy, useUpdatePolicyStatus, useExportPolicyPdf, useExportPolicyDocx } from "@/lib/hooks/usePolicies";
+import { usePolicy, useUpdatePolicyStatus, useUpdatePolicyContent, useExportPolicyPdf, useExportPolicyDocx } from "@/lib/hooks/usePolicies";
 import { POLICY_TYPE_LABELS, type PolicyStatus } from "@/lib/policiesApi";
 import { PolicyMarkdown } from "./_components/PolicyMarkdown";
 
@@ -43,6 +44,10 @@ const styles = {
     }`,
   layout: "grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-6",
   content: "bg-white border border-gray-100 rounded-2xl p-8",
+  editBtn: "px-3 py-2 text-sm font-medium border border-gray-200 rounded-xl text-gray-700 hover:border-[#0F2044] transition-colors",
+  saveBtn: "px-3 py-2 text-sm font-medium bg-[#0F2044] text-white rounded-xl hover:bg-[#1a3a6e] transition-colors disabled:opacity-50",
+  cancelBtn: "px-3 py-2 text-sm font-medium border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors",
+  textarea: "w-full h-[600px] font-mono text-sm text-gray-800 border border-gray-200 rounded-xl p-4 resize-none focus:outline-none focus:ring-2 focus:ring-[#0F2044]/20",
   sidebar: "space-y-4",
   sectionTitle: "text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2",
   versionList: "space-y-2",
@@ -68,10 +73,32 @@ export default function PolicyDetailPage() {
 
   const { data: policy, isLoading, isError } = usePolicy(policyId);
   const updateStatus = useUpdatePolicyStatus();
+  const updateContent = useUpdatePolicyContent();
   const exportPdf = useExportPolicyPdf();
   const exportDocx = useExportPolicyDocx();
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+
   // ── Handlers ──────────────────────────────────────────
+
+  const handleEditStart = () => {
+    setEditDraft(policy?.content ?? "");
+    setIsEditing(true);
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
+    setEditDraft("");
+  };
+
+  const handleEditSave = () => {
+    if (!policy) return;
+    updateContent.mutate(
+      { policyId: policy.policy_id, content: editDraft },
+      { onSuccess: () => setIsEditing(false) }
+    );
+  };
 
   const handleStatusChange = (status: PolicyStatus) => {
     if (!policy || policy.status === status) return;
@@ -112,12 +139,24 @@ export default function PolicyDetailPage() {
           </p>
         </div>
         <div className={styles.actions}>
-          <button className={styles.exportBtn} onClick={handleExportPdf} disabled={exportPdf.isPending}>
-            {exportPdf.isPending ? "Exporting…" : "Export PDF"}
-          </button>
-          <button className={styles.exportBtn} onClick={handleExportDocx} disabled={exportDocx.isPending}>
-            {exportDocx.isPending ? "Exporting…" : "Export DOCX"}
-          </button>
+          {isEditing ? (
+            <>
+              <button className={styles.cancelBtn} onClick={handleEditCancel}>Cancel</button>
+              <button className={styles.saveBtn} onClick={handleEditSave} disabled={updateContent.isPending}>
+                {updateContent.isPending ? "Saving…" : "Save"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className={styles.editBtn} onClick={handleEditStart}>Edit</button>
+              <button className={styles.exportBtn} onClick={handleExportPdf} disabled={exportPdf.isPending}>
+                {exportPdf.isPending ? "Exporting…" : "Export PDF"}
+              </button>
+              <button className={styles.exportBtn} onClick={handleExportDocx} disabled={exportDocx.isPending}>
+                {exportDocx.isPending ? "Exporting…" : "Export DOCX"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -168,7 +207,15 @@ export default function PolicyDetailPage() {
         {renderStatus()}
         <div className={styles.layout}>
           <div className={styles.content}>
-            <PolicyMarkdown content={policy.content ?? ""} />
+            {isEditing ? (
+              <textarea
+                className={styles.textarea}
+                value={editDraft}
+                onChange={(e) => setEditDraft(e.target.value)}
+              />
+            ) : (
+              <PolicyMarkdown content={policy.content ?? ""} />
+            )}
           </div>
           <div className={styles.sidebar}>{renderVersions()}</div>
         </div>

@@ -4,7 +4,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/nextjs";
 import {
-  listPolicies, getPolicy, generatePolicy, updatePolicyStatus,
+  listPolicies, getPolicy, generatePolicy, updatePolicyStatus, updatePolicyContent,
   exportPolicyPdf, exportPolicyDocx,
   type PolicyGenerateRequest, type PolicyStatus, type PolicyType,
 } from "@/lib/policiesApi";
@@ -76,6 +76,24 @@ export const useUpdatePolicyStatus = () => {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
       return updatePolicyStatus(token, policyId, status);
+    },
+    onSuccess: (policy) => {
+      qc.invalidateQueries({ queryKey: policyKeys.list() });
+      qc.invalidateQueries({ queryKey: policyKeys.detail(policy.policy_id) });
+    },
+  });
+};
+
+// ── useUpdatePolicyContent ────────────────────────────────────────────────────
+
+export const useUpdatePolicyContent = () => {
+  const { getToken } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ policyId, content }: { policyId: string; content: string }) => {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      return updatePolicyContent(token, policyId, content);
     },
     onSuccess: (policy) => {
       qc.invalidateQueries({ queryKey: policyKeys.list() });

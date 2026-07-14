@@ -38,6 +38,9 @@ class PolicyGenerateRequest(BaseModel):
         return v
 
 
+class PolicyContentRequest(BaseModel):
+    content: str
+
 class PolicyStatusRequest(BaseModel):
     status: str
 
@@ -279,6 +282,40 @@ async def export_policy_docx(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+# ── PATCH /api/v1/policies/{policy_id}/content ───────────────────────────────
+
+@router.patch("/{policy_id}/content")
+async def update_policy_content(
+    policy_id: str,
+    body: PolicyContentRequest,
+    claims: TokenClaims = Depends(verify_token),
+    session: AsyncSession = Depends(get_admin_session),
+):
+    policy = await _get_policy(session, policy_id, claims.tenant_id)
+
+    policy.current_version += 1
+    version = PolicyVersion(
+        tenant_id=claims.tenant_id,
+        tenant_name=policy.tenant_name,
+        policy_id=policy.policy_id,
+        version_number=policy.current_version,
+        status=policy.status,
+        content_format=policy.content_format,
+        title=policy.title,
+        content=body.content,
+        is_ai_enhanced=policy.is_ai_enhanced,
+        change_type=PolicyChangeType.EDITED,
+        created_by=claims.user_id,
+    )
+    session.add(version)
+    policy.content = body.content
+    await session.flush()
+    await session.refresh(policy)
+    await session.commit()
+
+    return _serialize(policy)
 
 
 # ── PATCH /api/v1/policies/{policy_id}/status ────────────────────────────────
