@@ -5,6 +5,37 @@ Updated every time a ticket is closed.
 
 ---
 
+## Session — 2026-07-14 — COM-210 Score Split
+
+**Date:** 2026-07-14
+**Branch:** feat/evidence-center-com-210
+
+### What was built
+
+Removed the `>50% unknown` gate in `Scorer.calculate_overall_score` that was blocking real scores for users who completed onboarding. Gate was introduced to avoid showing a misleading score when too many articles were unevaluated, but `document_required` articles (15+ in GDPR alone) are permanently unknown until Evidence Center ships, so the gate never lifted.
+
+**scorer.py:** Gate replaced with simpler rule: return `score: None` only when `total_weight == 0` (nothing scoreable at all). Added `coverage_pct` to both return paths.
+
+**assessments.py `/latest` endpoint:** `insufficient_data` recalculated to match new scorer contract (`score is None`). `coverage_pct` added to each result dict.
+
+**types/assessment.ts:** `coverage_pct?: number` added to `LatestAssessment` interface.
+
+**RegulationHealthCards.tsx:** Amber "Partial" badge + "Based on X% of articles" line shown when `score != null && coverage_pct < 80`. `InsufficientDataCard` copy updated to "No scoreable articles yet".
+
+**test_engine.py:** Updated `test_empty_results_gives_score_zero` (empty results now returns None). Added 4 new tests covering majority-unknown-still-scores, coverage_pct accuracy, and score-None-only-when-weight-zero guard.
+
+### Decisions
+
+- Empty results (`[]`) now returns `score: None` — old `score: 0` was misleading.
+- `coverage_pct` computed at both scorer level and endpoint level (endpoint recomputes from stored columns).
+- `InsufficientDataCard` retained but only shown for genuinely zero-scoreable tenants.
+
+### Tests
+
+479 policy-engine + 33 common pass. Frontend typecheck clean.
+
+---
+
 ## Session — 2026-07-04 — Full Frontend UI Redesign (Sprint 5 Visual Overhaul)
 
 **Date:** 2026-07-04
@@ -74,6 +105,64 @@ DSAR: stat cards, WorkflowDots sub-component, amber CTAs.
 
 - FA-D10: Profile Settings page (`/settings/profile`) — accordion form pre-populated from current profile, Save & Recalculate button triggers PATCH + 3 assessment POSTs.
 - E2E testing with Clerk test accounts before any customer-facing deployment.
+
+---
+
+## Session — 2026-07-14 — Evidence Center Planning + CSP Fix + Score Analysis
+
+**Date:** 2026-07-14
+**Branch:** main
+
+### Tickets
+
+| Ticket | Title | Status |
+|---|---|---|
+| COM-210 | Score split — show partial compliance score | 🔄 Planned, not started |
+| COM-211 | Evidence Center backend | 🔄 Planned, not started |
+| COM-212 | Evidence Center frontend | 🔄 Planned, not started |
+
+### What was done
+
+**CSP fix (`frontend/next.config.ts`)**
+The Content Security Policy added in COM-128 was blocking all API calls to `localhost:8000` and Clerk's blob web workers. Fixed:
+- Added `http://localhost:8000 http://localhost:8001 wss://localhost:*` to `connect-src`
+- Added `worker-src blob:` directive (Clerk creates blob workers for its auth flow)
+- Added `https://*.ingest.sentry.io https://*.ingest.de.sentry.io` to `connect-src`
+
+**Migration chain fix**
+After PR #48 merged to main, `make migrate` failed: "Can't locate revision identified by 'f1d70da98aeb'". Root cause: the container was built before a merge migration file was added to the repo. Fix: `make rebuild-api` then `make migrate`.
+
+**Score analysis — root cause of "Not enough data"**
+Full audit of `calculate_overall_score` in `scorer.py`. The >50% unknown gate at line 102 permanently blocks scores because ~15 GDPR articles are `document_required` type — they always return "unknown" regardless of profile answers. Users see "Not enough data" even after completing all onboarding questions.
+
+**Evidence Center planning**
+Full 3-ticket multi-agent execution plan written and saved to CLAUDE.md:
+- COM-210: Score split (remove >50% gate, show partial score with coverage_pct)
+- COM-211: Evidence Center backend (evidence_documents table, AI evaluation per doc type)
+- COM-212: Evidence Center frontend (checklist page, upload modal, evaluation results)
+
+Full agent pipeline defined: Brain → Planner → Pre-Work Verifier → Task Agents → Per-Task Verifier → Code Standards Checker → Integration Test Runner → Commit Agent.
+
+### Key decisions
+
+- Show partial score (based on scoreable articles) instead of blocking score entirely. Only return `score: None` when `total_weight == 0` (nothing scoreable at all).
+- Add `coverage_pct` field to assessment response — computed from existing `unknown_rules / applicable_rules` fields, no new DB column.
+- Evidence Center document types: `privacy_notice` (Art.12/13/14), `security_policy` (Art.32), `breach_response_plan` (Art.33/34), `dpia_template` (Art.35/36).
+- New public ID prefix: `evd_` for evidence documents.
+- Reuse DPA analyzer pattern (pypdf + AI extraction) generalised to multiple document types.
+
+### Gotchas
+
+- CSP `worker-src` must be set explicitly — without it, Clerk's blob workers fall back to `script-src` and get blocked.
+- `worker-src blob:` is separate from `script-src` and `connect-src` — easy to miss.
+- Document_required articles are permanently unknown without Evidence Center. No profile field change fixes this.
+
+### Next steps
+
+1. Start new session with `claude-opus-4-8`
+2. Say: "Start COM-210 — score split. Follow the Evidence Center pipeline plan in CLAUDE.md."
+3. COM-210 is 4 files, ~30 min. Unblocks score display for all existing users immediately.
+4. COM-211 and COM-212 follow in sequence.
 
 ---
 
