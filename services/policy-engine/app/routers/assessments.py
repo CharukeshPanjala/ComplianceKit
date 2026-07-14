@@ -102,25 +102,6 @@ async def run_assessment(
             "message": "Assessment already in progress.",
         }
 
-    recent_result = await session.execute(
-        select(Assessment)
-        .where(
-            Assessment.tenant_id == claims.tenant_id,
-            Assessment.regulation_id == regulation.id,
-            Assessment.status == AssessmentStatus.COMPLETED,
-            Assessment.completed_at >= datetime.now(timezone.utc) - timedelta(hours=1),
-        )
-        .limit(1)
-    )
-    recent = recent_result.scalar_one_or_none()
-    if recent:
-        return {
-            "assessment_id": recent.assessment_id,
-            "status": recent.status,
-            "regulation": regulation_name,
-            "message": "Assessment ran less than 1 hour ago. Returning existing result.",
-        }
-
     # ── Load latest regulation version ────────────────────────────────────────
     from common.models.regulation import RegulationVersion
     version_result = await session.execute(
