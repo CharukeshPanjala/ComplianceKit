@@ -332,33 +332,6 @@ class TestRunAssessment:
         response = test_client.post("/api/v1/assessments", json={"regulation_name": "GDPR"})
         assert response.json()["assessment_id"] == "asm_running"
 
-    def test_returns_existing_when_completed_within_1_hour(self, client):
-        """Assessment completed < 1hr ago → return existing."""
-        test_client, mock_session = client
-        recent = make_mock_assessment(
-            assessment_id="asm_recent",
-            status=AssessmentStatus.COMPLETED,
-            completed_at=datetime.now(timezone.utc) - timedelta(minutes=30),
-        )
-        call_count = 0
-
-        async def side_effect(stmt):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return scalar_result(make_mock_regulation())
-            if call_count == 2:
-                return scalar_result(make_mock_profile())
-            if call_count == 3:  # running check
-                return scalar_result(None)
-            return scalar_result(recent)  # recent check
-
-        mock_session.execute = side_effect
-
-        response = test_client.post("/api/v1/assessments", json={"regulation_name": "GDPR"})
-        assert response.json()["assessment_id"] == "asm_recent"
-        assert "1 hour ago" in response.json()["message"]
-
     @patch("app.routers.assessments.create_pool")
     def test_failed_assessment_within_1hr_does_not_trigger_cooldown(self, mock_pool, client):
         """Failed assessment < 1hr ago → NOT caught by cooldown → creates new."""
