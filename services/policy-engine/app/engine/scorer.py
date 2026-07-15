@@ -97,13 +97,15 @@ class Scorer:
 
         total_applicable = len(scoring_results)
         unknown_count = counts["unknown"]
+        coverage_pct = round((1 - unknown_count / total_applicable) * 100) if total_applicable > 0 else 0
 
-        # Insufficient data: >50% of applicable rules are unknown — score would be misleading
-        if total_applicable > 0 and unknown_count / total_applicable > 0.5:
+        # Nothing scoreable at all — every applicable rule is document/policy/technical type
+        if total_weight == 0:
             return {
                 "score": None,
                 "risk_level": None,
                 "insufficient_data": True,
+                "coverage_pct": coverage_pct,
                 "total_rules": total_applicable,
                 "met_rules": counts["met"],
                 "partial_rules": counts["partial"],
@@ -112,7 +114,7 @@ class Scorer:
                 "applicable_rules": total_applicable,
             }
 
-        score = round((earned_weight / total_weight) * 100) if total_weight > 0 else 0
+        score = round((earned_weight / total_weight) * 100)
 
         # Risk level from score
         if score >= 80:
@@ -128,6 +130,7 @@ class Scorer:
             "score": score,
             "risk_level": risk_level,
             "insufficient_data": False,
+            "coverage_pct": coverage_pct,
             "total_rules": total_applicable,
             "met_rules": counts["met"],
             "partial_rules": counts["partial"],

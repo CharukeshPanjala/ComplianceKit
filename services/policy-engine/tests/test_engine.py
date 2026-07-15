@@ -1090,11 +1090,13 @@ class TestScorerNIS2Rules:
 class TestScorerOverallScore:
     """Tests for the overall score calculation."""
 
-    def test_empty_results_gives_score_zero(self):
+    def test_empty_results_gives_score_none(self):
+        """No applicable rules → total_weight == 0 → score is None."""
         scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score([])
-        assert summary["score"] == 0
+        assert summary["score"] is None
         assert summary["total_rules"] == 0
+        assert summary["coverage_pct"] == 0
 
     def test_all_met_gives_score_100(self):
         results = [make_scoring_result(make_rule(severity=Severity.HIGH), "met")]
@@ -1111,13 +1113,63 @@ class TestScorerOverallScore:
         assert summary["risk_level"] == "critical"
 
     def test_all_unknown_gives_score_none(self):
-        """All unknown rules → insufficient_data, score is None (can't calculate from zero weight)."""
+        """All unknown rules → total_weight == 0 → score is None."""
         results = [make_scoring_result(make_rule(severity=Severity.HIGH), "unknown")]
         scorer = Scorer(make_profile(), [], "GDPR")
         summary = scorer.calculate_overall_score(results)
         assert summary["score"] is None
         assert summary.get("insufficient_data") is True
         assert summary["unknown_rules"] == 1
+
+    def test_majority_unknown_still_returns_score(self):
+        """Majority unknown does NOT suppress score — gate removed in COM-210."""
+        results = [
+            make_scoring_result(make_rule(severity=Severity.HIGH), "met"),
+            make_scoring_result(make_rule(severity=Severity.HIGH), "unknown"),
+            make_scoring_result(make_rule(severity=Severity.HIGH), "unknown"),
+            make_scoring_result(make_rule(severity=Severity.HIGH), "unknown"),
+        ]
+        scorer = Scorer(make_profile(), [], "GDPR")
+        summary = scorer.calculate_overall_score(results)
+        assert summary["score"] == 100
+        assert summary.get("insufficient_data") is False
+        assert summary["unknown_rules"] == 3
+
+    def test_coverage_pct_reflects_evaluated_articles(self):
+        """coverage_pct = % of applicable articles that are not unknown."""
+        results = [
+            make_scoring_result(make_rule(severity=Severity.MEDIUM), "met"),
+            make_scoring_result(make_rule(severity=Severity.MEDIUM), "not_met"),
+            make_scoring_result(make_rule(severity=Severity.MEDIUM), "unknown"),
+            make_scoring_result(make_rule(severity=Severity.MEDIUM), "unknown"),
+        ]
+        scorer = Scorer(make_profile(), [], "GDPR")
+        summary = scorer.calculate_overall_score(results)
+        # 2 of 4 evaluated → 50% coverage
+        assert summary["coverage_pct"] == 50
+        assert summary["score"] is not None
+
+    def test_coverage_pct_is_100_when_no_unknowns(self):
+        """coverage_pct is 100 when all rules are evaluated."""
+        results = [
+            make_scoring_result(make_rule(severity=Severity.HIGH), "met"),
+            make_scoring_result(make_rule(severity=Severity.HIGH), "not_met"),
+        ]
+        scorer = Scorer(make_profile(), [], "GDPR")
+        summary = scorer.calculate_overall_score(results)
+        assert summary["coverage_pct"] == 100
+
+    def test_score_none_only_when_total_weight_zero(self):
+        """score is None only when zero rules are scoreable (all unknown)."""
+        all_unknown = [make_scoring_result(make_rule(severity=Severity.CRITICAL), "unknown") for _ in range(10)]
+        scorer = Scorer(make_profile(), [], "GDPR")
+        summary = scorer.calculate_overall_score(all_unknown)
+        assert summary["score"] is None
+        # Add one met rule — now score must be non-None
+        one_met = all_unknown + [make_scoring_result(make_rule(severity=Severity.LOW), "met")]
+        summary2 = scorer.calculate_overall_score(one_met)
+        assert summary2["score"] is not None
+        assert summary2["score"] == 100
 
     def test_partial_rule_gives_50_percent(self):
         """Single partial rule → score is 50."""

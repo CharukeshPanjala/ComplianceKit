@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { GaugeRing } from "@/components/ui/GaugeRing";
 import { useTriggerAssessment } from "@/lib/hooks/useTriggerAssessment";
 import type { LatestAssessment, Gap, RegulationName } from "@/types/assessment";
@@ -115,10 +116,10 @@ const InsufficientDataCard = ({
       <div className="flex flex-col items-center gap-2 py-2 text-center">
         <span className="text-2xl">📋</span>
         <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
-          Not enough data
+          No scoreable articles yet
         </p>
         <p className="text-xs text-amber-700 leading-relaxed px-1">
-          {unknownRules} of {totalRules} articles need documentation before a reliable score can be calculated.
+          {unknownRules} of {totalRules} articles require documentation uploads before a score can be calculated.
         </p>
       </div>
       <div className={styles.actions}>
@@ -158,9 +159,30 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
     variables: triggeringReg,
   } = useTriggerAssessment();
 
+  const [localPending, setLocalPending] = useState<Set<RegulationName>>(new Set());
+
+  const clearPending = (reg: RegulationName) => {
+    setLocalPending((prev) => {
+      const next = new Set(prev);
+      next.delete(reg);
+      return next;
+    });
+  };
+
+  const handleTrigger = (reg: RegulationName) => {
+    setLocalPending((prev) => new Set([...prev, reg]));
+    triggerOne(reg, {
+      onSettled: () => setTimeout(() => clearPending(reg), 1500),
+    });
+  };
+
   const renderCard = (reg: RegulationName) => {
     const cfg = REG_CONFIG[reg];
     const assessment = assessments.find((a) => a.regulation === reg);
+
+    if (localPending.has(reg) || assessment?.status === "pending" || assessment?.status === "running") {
+      return <SkeletonCard key={reg} reg={reg} />;
+    }
 
     if (!assessment) {
       return (
@@ -172,7 +194,7 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
           <p className={styles.notRunText}>Not assessed yet</p>
           <div className={styles.actions}>
             <button
-              onClick={() => triggerOne(reg)}
+              onClick={() => handleTrigger(reg)}
               disabled={isTriggering && triggeringReg === reg}
               className={styles.reassessBtn}
             >
@@ -183,10 +205,6 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
       );
     }
 
-    if (assessment.status === "pending" || assessment.status === "running") {
-      return <SkeletonCard key={reg} reg={reg} />;
-    }
-
     if (assessment.insufficient_data) {
       return (
         <InsufficientDataCard
@@ -194,7 +212,7 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
           reg={reg}
           unknownRules={assessment.unknown_rules ?? 0}
           totalRules={(assessment.met_rules ?? 0) + (assessment.partial_rules ?? 0) + (assessment.not_met_rules ?? 0) + (assessment.unknown_rules ?? 0)}
-          onReassess={() => triggerOne(reg)}
+          onReassess={() => handleTrigger(reg)}
           isTriggering={isTriggering && triggeringReg === reg}
         />
       );
@@ -212,6 +230,8 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
 
     const score = assessment.score ?? 0;
     const chip = getStatusChip(assessment.score);
+    const coveragePct = assessment.coverage_pct ?? 100;
+    const isPartial = assessment.score !== null && coveragePct < 80;
     const regGaps = gapsByRegulation[reg] ?? [];
     const openGaps = regGaps.filter(isOpen);
 
@@ -244,12 +264,22 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
           <div className="flex items-center gap-1.5">
             <span className={styles.regBadge} style={{ backgroundColor: cfg.color }}>{cfg.label}</span>
             <span className={`${styles.statusChip} ${chip.cls}`}>{chip.label}</span>
+            {isPartial && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-300 text-amber-700 bg-amber-50">
+                Partial
+              </span>
+            )}
           </div>
         </div>
 
         <div className={styles.gaugeRow}>
           <GaugeRing score={score} size={80} strokeWidth={7} />
         </div>
+        {isPartial && (
+          <p className="text-[11px] text-center text-amber-600">
+            Based on {coveragePct}% of articles
+          </p>
+        )}
 
         <div className={styles.statsRow}>
           {[
@@ -274,7 +304,7 @@ export const RegulationHealthCards = ({ assessments, gapsByRegulation, onViewGap
             </button>
           )}
           <button
-            onClick={() => triggerOne(reg)}
+            onClick={() => handleTrigger(reg)}
             disabled={isTriggering && triggeringReg === reg}
             className={styles.reassessBtn}
           >

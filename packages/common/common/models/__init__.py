@@ -11,6 +11,7 @@ from common.models.policy import Policy, PolicyVersion
 from common.models.processor import Processor
 from common.models.breach import BreachIncident
 from common.models.dsar import DsarRequest
+from common.models.evidence import EvidenceDocument
 
 __all__ = [
     "Base",
@@ -31,4 +32,5 @@ __all__ = [
     "Processor",
     "BreachIncident",
     "DsarRequest",
+    "EvidenceDocument",
 ]

@@ -108,6 +108,9 @@ export const generatePolicy = (token: string, body: PolicyGenerateRequest): Prom
 export const updatePolicyStatus = (token: string, policyId: string, status: PolicyStatus): Promise<Policy> =>
   request(`/api/v1/policies/${policyId}/status`, token, { method: "PATCH", body: JSON.stringify({ status }) });
 
+export const updatePolicyContent = (token: string, policyId: string, content: string): Promise<Policy> =>
+  request(`/api/v1/policies/${policyId}/content`, token, { method: "PATCH", body: JSON.stringify({ content }) });
+
 export const exportPolicyPdf = (token: string, policyId: string, policyType: PolicyType): Promise<void> =>
   downloadFile(`/api/v1/policies/${policyId}/export/pdf`, token, `${policyType}.pdf`);
 
